@@ -1,14 +1,16 @@
 subroutine OptQC_REAL(root,my_rank,p,args_obj)
 
 use common_module
+use csd_mpi
 use csd_perm
 use csd_tools
+use m_mrgrnk
 use mpi
 use rng
 
 implicit none
 character(len=128) :: finput, fhist, fperm, ftex
-integer :: N, M, d, i, j, Msq
+integer :: N, M, d, i, j, k, l, Msq, num
 integer :: ecur, enew, esol, idx_sol
 integer, allocatable :: history(:)
 integer :: hist_idx, m_pos, delta, tol, t0, e0
@@ -24,12 +26,19 @@ integer, allocatable :: QPerm(:), QPerm_new(:)
 
 ! MPI variables
 integer :: my_rank, p, ierr, root
-integer, allocatable :: MPI_int_buffer(:)
+integer :: MPI_int_buffer(1)
 double precision, allocatable :: X_MPI_temp(:)
 integer, allocatable :: r_col_array(:)
 integer :: mpi_stat(MPI_STATUS_SIZE)
+integer :: mpi_group_world, mpi_group_local, mpi_comm_local
 ! Timer variables
-double precision :: c_start, c_mid, c_end, c_time1, c_time2
+double precision :: c_start, c_mid, c_end, c_time1, c_time2, c_t1, c_t2, c_tot
+! Synchronization variables
+integer :: SYNCH_ct, POPTNUM
+integer :: p_group
+integer, allocatable :: p_rank_pos(:), groupsizes(:)
+type(l_arr_int_1) :: subgroups
+character, pointer :: synch_buffer(:)
 
 ! Objects
 integer :: nset
@@ -38,13 +47,14 @@ type(prog_args) :: args_obj
 type(csd_generator) :: csdgen_obj
 type(csd_solution_set) :: csdss_Xinit, csdss_Xcur, csdss_Xnew, csdss_Xsol
 type(csd_write_handle) :: csdwh_obj
+type(csd_mpi_handle) :: csdmh_obj
 
 ! Initialize the RNG object from the module
 call rng_inst%seed(my_rank)
 ! Set the number of matrices to be 5
 nset = 5
-! Allocate integer buffer
-allocate(MPI_int_buffer(1))
+! Get group handle to MPI_COMM_WORLD
+call MPI_Comm_group(MPI_COMM_WORLD,mpi_group_world,ierr)
 
 if(my_rank == root) then
     write(*,'(a)')"Performing decomposition of a real orthogonal matrix."
@@ -139,6 +149,7 @@ call csdss_Xcur%constructor(N,M,nset,type_spec)
 call csdss_Xnew%constructor(N,M,nset,type_spec)
 call csdss_Xsol%constructor(N,M,nset,type_spec)
 call csdwh_obj%constructor(N)
+call csdmh_obj%constructor(N,M)
 ! Convention: U = Q^T P^T U' P Q - CHECKED AND VERIFIED
 call permlisttomatrixtr(M,Perm,csdss_Xinit%arr(2)%X)                            ! P^T
 call permlisttomatrix(M,Perm,csdss_Xinit%arr(4)%X)                              ! P
@@ -176,7 +187,24 @@ tol = CalcTol(args_obj%TOL_COEFF,ecur)
 t0 = tol
 e0 = ecur
 idx_sol = 0
+SYNCH_ct = 0
 
+! Note: Might change this later - currently hardcoded to be 10% of the number of processes
+POPTNUM = ceiling(0.1d0 * p)
+! Allocate synchronization variables
+allocate(p_rank_pos(p))
+allocate(groupsizes(POPTNUM))
+call subgroups%constructor(POPTNUM)
+! Determine group sizes
+i = floor(p/dble(POPTNUM))
+j = p - (i * POPTNUM)
+groupsizes = i
+if(j > 0) groupsizes(1:j) = i+1
+do i = 1, POPTNUM
+	call subgroups%l(i)%constructor(groupsizes(i))
+end do
+
+c_tot = 0.0d0
 do i = 1, args_obj%ITER_LIM
     Perm_new = Perm
     call NeighbourhoodOpt(N,M,csdss_Xinit,csdss_Xcur,csdss_Xnew,Perm_new)
@@ -209,6 +237,51 @@ do i = 1, args_obj%ITER_LIM
         tol = CalcTol(args_obj%TOL_COEFF,ecur)
     else
         tol = t0
+    end if
+    ! Perform synchronization and comparisons after every SYNCH_NUM iterations
+    SYNCH_ct = SYNCH_ct + 1
+    if(SYNCH_ct == args_obj%SYNCH_NUM .and. POPTNUM < p) then
+    	c_t1 = MPI_Wtime()
+    	! Wait for all processes to reach this point - possible slowdown issue between fast/slow threads
+    	call MPI_Barrier(MPI_COMM_WORLD,ierr)
+    	! Collate all current objective function values
+    	MPI_int_buffer(1) = ecur
+    	call MPI_Allgather(MPI_int_buffer,1,MPI_INTEGER,r_col_array,1,MPI_INTEGER,MPI_COMM_WORLD,ierr)
+    	! Obtain ranking for each process
+    	p_rank_pos = -1
+    	call mrgrnk(r_col_array,p_rank_pos)
+    	! Construct groupings - note index i is already used >_>
+    	l = POPTNUM+1
+    	do j = 1, POPTNUM
+    		num = p_rank_pos(j)
+    		if(my_rank+1 == num) p_group = j
+    		subgroups%l(j)%arr(1) = num-1
+    		do k = 2, groupsizes(j)
+    			num = p_rank_pos(l)
+    			if(my_rank+1 == num) p_group = j
+    			subgroups%l(j)%arr(k) = num-1
+    			l = l + 1
+    		end do
+    	end do
+        ! Get handle to the new group
+        call MPI_Group_incl(mpi_group_world,groupsizes(p_group),subgroups%l(p_group)%arr,mpi_group_local,ierr)
+        ! Create communicator for the new group
+        call MPI_Comm_create(MPI_COMM_WORLD,mpi_group_local,mpi_comm_local,ierr)
+        ! Broadcast optimal solutions from root processes to the rest of the local groups - note that root process (the most optimal) is always the rank 0 in each group
+        call csdmh_obj%synchronize(QPerm,Perm,csdss_Xcur,mpi_group_local,mpi_comm_local,0)
+!       ! Check difference
+!       Xcpy = matmul(csdss_Xcur%arr(2)%X,csdss_Xcur%arr(3)%X)
+! 		Xcpy = matmul(csdss_Xcur%arr(1)%X,Xcpy)
+! 		Xcpy = matmul(Xcpy,csdss_Xcur%arr(4)%X)
+! 		Xcpy = matmul(Xcpy,csdss_Xcur%arr(5)%X)
+! 		write(*,*)"Process ",my_rank," has difference matrix: ",Xcpy-X
+        ! Deallocate the new group and corresponding communicator
+        call MPI_Group_free(mpi_group_local,ierr)
+        call MPI_Comm_free(mpi_comm_local,ierr)
+    	! Reset synchronization count
+    	SYNCH_ct = 0
+    	c_t2 = MPI_Wtime()
+    	c_tot = c_tot + c_t2 - c_t1
     end if
 end do
 if(ecur < esol) then
@@ -269,7 +342,7 @@ if(my_rank /= root) then
 end if
 write(*,'(a,i4,a,i8,a,i8)')"Process ",my_rank,": Initial number of gates before/after reduction = ",csdss_Xinit%csd_ss_ct,"/",csdss_Xinit%csdr_ss_ct
 write(*,'(a,i4,a,i8,a,i8,a,i8,a,i8,a,i8,a,i8,a,i8)')"Process ",my_rank,": Breakdown of solution = ",csdss_Xsol%arr(1)%csdr_ct,"/",csdss_Xsol%arr(2)%csdr_ct,"/",csdss_Xsol%arr(3)%csdr_ct,"/",csdss_Xsol%arr(4)%csdr_ct,"/",csdss_Xsol%arr(5)%csdr_ct,"/",csdss_Xsol%csdr_ss_ct," at step number ",idx_sol
-write(*,'(a,i4,a,f15.9,a,f15.9,a)')"Process ",my_rank,": Time taken = ",c_time1,"/",c_time2," seconds."
+write(*,'(a,i4,a,f15.9,a,f15.9,a,f15.9,a)')"Process ",my_rank,": Time taken = ",c_time1,"/",c_time2,"/",c_tot," seconds."
 call flush(6)
 if(my_rank /= p-1) then
     call MPI_Send(MPI_int_buffer,1,MPI_INTEGER,my_rank+1,101,MPI_COMM_WORLD,ierr)
@@ -278,8 +351,10 @@ end if
 ! Finalize modules
 call finalize_csd_perm()
 
+! Deallocate group handles
+call MPI_Group_free(mpi_group_world,ierr)
+
 ! Free up memory
-deallocate(MPI_int_buffer)
 deallocate(X)
 deallocate(X_MPI_temp)
 deallocate(history)
@@ -293,14 +368,18 @@ deallocate(Perm_sol)
 deallocate(QPerm)
 deallocate(QPerm_new)
 deallocate(type_spec)
+deallocate(p_rank_pos)
+deallocate(groupsizes)
 
 ! Run object destructors
+call subgroups%destructor()
 call csdgen_obj%destructor()
 call csdss_Xinit%destructor()
 call csdss_Xcur%destructor()
 call csdss_Xnew%destructor()
 call csdss_Xsol%destructor()
 call csdwh_obj%destructor()
+call csdmh_obj%destructor()
 
 end subroutine OptQC_REAL
 

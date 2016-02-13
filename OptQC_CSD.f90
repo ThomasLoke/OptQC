@@ -10,13 +10,14 @@ implicit none
 double precision, parameter :: CUTOFF = 0.0000000001d0
 double precision, parameter :: PI = 3.1415926535897932384626433832795028841971693993751d0
 double complex, parameter :: C_ZERO = cmplx(0.0d0,0.0d0)
+integer, parameter :: CLEN = 32
 
 type csd_solution
     integer :: N, M
     integer :: obj_type                                     ! 0 if real, 1 if complex
     double precision, allocatable :: X(:,:)
     double complex, allocatable :: Xc(:,:)
-    character(len=32), allocatable :: Circuit(:,:)          ! Note: By design, this is empty unless run_csdr is called
+    character(len=CLEN), allocatable :: Circuit(:,:)          ! Note: By design, this is empty unless run_csdr is called
     integer :: csd_ct, csdr_ct
     logical :: neg                                          ! .true. if circuit represents -X, .false. otherwise - NOT USED IF CPLX
     logical :: toggle_csd                                   ! Runs csd/csdr procedure if .true., otherwise disallow any changes to variables (except via external subroutines)
@@ -67,7 +68,7 @@ type csd_generator
     integer :: targ_type                                    ! Copied
     double precision, pointer :: X(:,:)                     ! Intent: In
     double complex, pointer :: Xc(:,:)                      ! Intent: In
-    character(len=32), pointer :: Circuit(:,:)              ! Intent: Out
+    character(len=CLEN), pointer :: Circuit(:,:)            ! Intent: Out
     integer, pointer :: csd_ct, csdr_ct                     ! Intent: Out
     logical, pointer :: neg                                 ! Intent: Out
     ! Workspace arrays
@@ -125,7 +126,7 @@ type csd_write_handle
     character(len=128) :: fname
     integer :: FN
     ! Pointer to circuit
-    character(len=32), pointer :: Circuit(:,:)
+    character(len=CLEN), pointer :: Circuit(:,:)
     integer :: nct                                          ! Length of circuit
     ! Output variables
     character(len=256), allocatable :: buffer(:)
@@ -594,7 +595,7 @@ class(csd_solution), target :: csd_ss
 ! Bind pointers to the csd_solution elements
 this%targ_type = csd_ss%obj_type
 if(this%targ_type == 1 .and. this%obj_type == 0) then
-    write(*,*)"Error! Illegal usage of a real csd_generator object to decompose a complex matrix. Terminating program."
+    write(*,'(a)')"Error! Illegal usage of a real csd_generator object to decompose a complex matrix. Terminating program."
     call exit(1)
 end if
 if(this%targ_type == 0) then
@@ -1104,9 +1105,9 @@ if(this%targ_type == 0) then
         call this%ReduceGroups()
         ! There should only be one type, that is, Type_Param(1) = -1.0d0
         if(this%N_Type > 1) then
-            write(*,*)"Error! GATEPI value different to -1.0d0 encountered. GATEPI section:"
+            write(*,'(a)')"Error! GATEPI value different to -1.0d0 encountered. GATEPI section:"
             write(*,*)this%GATEPI(:,i)
-            write(*,*)"Terminating program."
+            write(*,'(a)')"Terminating program."
             call exit(1)
         end if
         do k = 1, this%N_Per_Type(1)

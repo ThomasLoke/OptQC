@@ -26,6 +26,7 @@ type prog_args
     integer :: ITER_LIM
     integer :: PERM_ITER_LIM
     double precision :: TOL_COEFF
+    integer :: SYNCH_NUM
 contains
 end type prog_args
 

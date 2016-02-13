@@ -317,3 +317,121 @@ end do
 return
 
 end function FindUnused
+
+subroutine permlisttomatrix(M,PermList,PermMat)
+
+implicit none
+integer :: M
+integer :: PermList(M)
+double precision :: PermMat(M,M)
+
+integer :: i
+
+PermMat = 0.0d0
+do i = 1, M
+    PermMat(i,PermList(i)) = 1.0d0
+end do
+
+end subroutine permlisttomatrix
+
+subroutine permlisttomatrixtr(M,PermList,PermMatTr)
+
+implicit none
+integer :: M
+integer :: PermList(M)
+double precision :: PermMatTr(M,M)
+
+integer :: i
+
+PermMatTr = 0.0d0
+do i = 1, M
+    PermMatTr(PermList(i),i) = 1.0d0
+end do
+
+end subroutine permlisttomatrixtr
+
+subroutine ApplyPerm(M,X,Z,Perm)
+
+implicit none
+integer :: M
+double precision :: X(M,M), Z(M,M)
+integer :: Perm(M)
+
+integer :: i, j, row
+
+do i = 1, M
+    row = Perm(i)
+    do j = 1, M
+        Z(i,j) = X(row,Perm(j))
+    end do
+end do
+
+return
+
+end subroutine ApplyPerm
+
+subroutine ApplyPerm_CPLX(M,X,Z,Perm)
+
+implicit none
+integer :: M
+double complex :: X(M,M), Z(M,M)
+integer :: Perm(M)
+
+integer :: i, j, row
+
+do i = 1, M
+    row = Perm(i)
+    do j = 1, M
+        Z(i,j) = X(row,Perm(j))
+    end do
+end do
+
+return
+
+end subroutine ApplyPerm_CPLX
+
+subroutine qpermtoperm(N,M,qperm,perm)
+
+implicit none
+integer :: N, M
+integer :: qperm(N), perm(M)
+
+logical, allocatable :: bitval(:)
+integer :: i, j, temp
+
+! Allocate temporary variables
+allocate(bitval(N))
+! Determine associated state permutation
+do i = 1, M
+    bitval = .false.
+    ! Find bit string representation
+    temp = i-1
+    do j = 1, N
+        bitval(N+1-j) = btest(temp,j-1)
+    end do
+    ! Determine new value after swapping bits from old bit string directly
+    temp = 0
+    do j = 1, N
+        if(bitval(qperm(j)) == .true.) then
+            temp = temp + (2**(N-j))
+        end if
+    end do
+    perm(i) = temp + 1
+end do
+deallocate(bitval)
+
+end subroutine qpermtoperm
+
+subroutine invertperm(len,Perm,PermTarg)
+
+implicit none
+integer :: len
+integer :: Perm(len), PermTarg(len)
+
+integer :: i
+
+do i = 1, len
+    PermTarg(Perm(i)) = i
+end do
+
+end subroutine invertperm

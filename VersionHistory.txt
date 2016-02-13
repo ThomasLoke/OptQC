@@ -44,6 +44,18 @@ v1.11:
 - Results confirm that everything is fine. HUZZAH. Although noticed a slight dip in performance (maybe)? Probably negligible. 
 - Decided to store current progress as v1.11 - next up, fixing all the things.
 
+v1.2F (Final):
+- Copy-pastaed source code from http://www.fortran-2000.com/rank/ (written by Michel Olagnon) for efficient code for array ranking. Updated Makefile correspondingly.
+- Wrote and tested mechanism for dividing processes up into groups (hardcoded: no of groups = 0.1 * no of processes) - rank 0 process is taken to be the root process.
+- To circumvent lack of flexibility with pointers, decided to make ANOTHER object to handle the MPI broadcasting of solutions within a group.
+- Added new module OptQC_MPI.f90 to handle MPI broadcasting stuffs. Edited Makefile correspondingly.
+- Bleh so much effort to write the entire module. Spent ages debugging (reminder: if the mpi malloc/free fails at MPI_Finalize, probably an indicator of out-of-bounds array).
+- Also: Anomaly of 300 -> 500 secs computation time for 3CT3? Communication? Doesn't look like multiplication. MAYBE ONCE IN A BLUE MOON????
+- Gave up on using matrix signatures - just computed matrix difference from original, and everything looks 0. So should be legit all good.
+- Extended CPLX implementation with synchronization - tested and BAM IT WORKS.
+- All results (generated using a pure random walk) are better than before woots.
+- Decided to store current progress as v1.2F - should not require any more changes, it is as optimal as can be given the current framework. Next up, genetic algorithm woots.
+
 ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
 ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
 
