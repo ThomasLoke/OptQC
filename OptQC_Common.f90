@@ -171,6 +171,74 @@ return
 
 end subroutine CYG_INDEXTABLE
 
+! Copied code from CYGC_COEFF
+
+subroutine CYGC_COEFF(N, M, COEFF)
+
+!
+!	FUNCTION
+!	========
+!
+!	To obtain the equivalent quantum gates of Z(2**N), namely the last N Rz Gates and a Phase Gate, we need to solve the following linear equation:
+!
+!	e.g. N = 3
+!		[  1  0  0  0 |  1  0 |  1 | 0 ]  [ GateZ'_{3,1} ]   [ PHASEZ_{8,1} ]
+!		[ -1  0  0  0 |  1  0 |  1 | 0 ]  [ GateZ'_{3,2} ]   [ PHASEZ_{8,2} ]
+!		[  0  1  0  0 | -1  0 |  1 | 0 ]  [ GateZ'_{3,3} ]   [ PHASEZ_{8,3} ]
+!		[  0 -1  0  0 | -1  0 |  1 | 0 ]  [ GateZ'_{3,4} ] = [ PHASEZ_{8,4} ]
+!		[  0  0  1  0 |  0  1 | -1 | 1 ]  [ GateZ'_{2,1} ]   [ PHASEZ_{8,5} ]
+!		[  0  0 -1  0 |  0  1 | -1 | 1 ]  [ GateZ'_{2,2} ]   [ PHASEZ_{8,6} ]
+!		[  0  0  0  1 |  0 -1 | -1 | 1 ]  [ GateZ'_{1,1} ]   [ PHASEZ_{8,7} ]
+!		[  0  0  0 -1 |  0 -1 | -1 | 1 ]  [  GatePhase   ]   [ PHASEZ_{8,8} ]
+!
+!	e.g. N = 4
+!		[  1  0  0  0  0  0  0  0 |  1  0  0  0 |  1  0 |  1 | 0 ]  [ GateZ'_{4,1} ]   [ PHASEZ_{16, 1} ]
+!		[ -1  0  0  0  0  0  0  0 |  1  0  0  0 |  1  0 |  1 | 0 ]  [ GateZ'_{4,2} ]   [ PHASEZ_{16, 2} ]
+!		[  0  1  0  0  0  0  0  0 | -1  0  0  0 |  1  0 |  1 | 0 ]  [ GateZ'_{4,3} ]   [ PHASEZ_{16, 3} ]
+!		[  0 -1  0  0  0  0  0  0 | -1  0  0  0 |  1  0 |  1 | 0 ]  [ GateZ'_{4,4} ]   [ PHASEZ_{16, 4} ]
+!		[  0  0  1  0  0  0  0  0 |  0  1  0  0 | -1  0 |  1 | 0 ]  [ GateZ'_{4,5} ]   [ PHASEZ_{16, 5} ]
+!		[  0  0 -1  0  0  0  0  0 |  0  1  0  0 | -1  0 |  1 | 0 ]  [ GateZ'_{4,6} ]   [ PHASEZ_{16, 6} ]
+!		[  0  0  0  1  0  0  0  0 |  0 -1  0  0 | -1  0 |  1 | 0 ]  [ GateZ'_{4,7} ]   [ PHASEZ_{16, 7} ]
+!		[  0  0  0 -1  0  0  0  0 |  0 -1  0  0 | -1  0 |  1 | 0 ]  [ GateZ'_{4,8} ] = [ PHASEZ_{16, 8} ]
+!		[  0  0  0  0  1  0  0  0 |  0  0  1  0 |  0  1 | -1 | 1 ]  [ GateZ'_{3,1} ]   [ PHASEZ_{16, 9} ]
+!		[  0  0  0  0 -1  0  0  0 |  0  0  1  0 |  0  1 | -1 | 1 ]  [ GateZ'_{3,2} ]   [ PHASEZ_{16,10} ]
+!		[  0  0  0  0  0  1  0  0 |  0  0 -1  0 |  0  1 | -1 | 1 ]  [ GateZ'_{3,3} ]   [ PHASEZ_{16,11} ]
+!		[  0  0  0  0  0 -1  0  0 |  0  0 -1  0 |  0  1 | -1 | 1 ]  [ GateZ'_{3,4} ]   [ PHASEZ_{16,12} ]
+!		[  0  0  0  0  0  0  1  0 |  0  0  0  1 |  0 -1 | -1 | 1 ]  [ GateZ'_{2,1} ]   [ PHASEZ_{16,13} ]
+!		[  0  0  0  0  0  0 -1  0 |  0  0  0  1 |  0 -1 | -1 | 1 ]  [ GateZ'_{2,2} ]   [ PHASEZ_{16,14} ]
+!		[  0  0  0  0  0  0  0  1 |  0  0  0 -1 |  0 -1 | -1 | 1 ]  [ GateZ'_{1,1} ]   [ PHASEZ_{16,15} ]
+!		[  0  0  0  0  0  0  0 -1 |  0  0  0 -1 |  0 -1 | -1 | 1 ]  [  GatePhase   ]   [ PHASEZ_{16,16} ]
+!
+!	CYGC_COEFF create the coefficient matrix.
+!
+!	ARGUMENT
+!	========
+!
+!	N: (Input) Integer
+!		The number of qubits for the quantum circuit
+!	M: (Input) Integer
+!		The size of the unitary matrix X. M = 2**N.
+!	COEFF: (Input & Output) Double Precision, dimension(M,M)
+!		The coefficient matrix of the linear equation.
+!
+
+implicit none
+integer :: N, M
+double precision :: COEFF(M,M)
+
+integer :: i, j
+
+COEFF = 0.0d0
+do i = 1,N
+	do j = 1,2**(N-i)
+		COEFF(2**i*(j-1)+1:2**i*j-2**(i-1),M-2**(N+1-i)+j) = 1.0d0
+		COEFF(2**i*j-2**(i-1)+1:2**i*j,M-2**(N+1-i)+j) = -1.0d0
+	end do
+end do
+COEFF(M/2+1:M,M) = 1.0d0
+return
+
+end subroutine CYGC_COEFF
 
 ! Functions/Subroutines for Main
 
@@ -280,6 +348,32 @@ RINT = floor( maxv * temp ) + 1
 return
 
 end function RINT
+
+! Generates a random qubit permutation
+subroutine qperm_generate(N,qperm)
+
+implicit none
+integer :: N
+integer :: qperm(N)
+
+integer :: i, idx, temp
+integer :: RINT
+
+! Start with the identity qubit permutation
+do i = 1, N
+    qperm(i) = i
+end do
+! Choose each element randomly and fix the chosen ones from the left of the array
+do i = 1, N-1
+    idx = i-1+RINT(N-i+1)
+    if(i /= idx) then
+        temp = qperm(i)
+        qperm(i) = qperm(idx)
+        qperm(idx) = temp
+    end if
+end do
+
+end subroutine qperm_generate
 
 ! Functions/Subroutines for Output
 

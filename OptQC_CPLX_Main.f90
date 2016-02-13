@@ -1,27 +1,29 @@
-subroutine OptQC_REAL(root,my_rank,p,args_obj)
+subroutine OptQC_CPLX(root,my_rank,p,args_obj)
 
 use common_module
-use csd_real
+use csd_cplx
 use mpi
 
 implicit none
 character(len=128) :: finput, fhist, fperm, ftex
+double precision :: in_1, in_2
 integer :: N, M, d, i, j, Msq
 integer :: ecur, enew, esol, idx_sol
 integer, allocatable :: history(:)
 integer :: m_pos, delta, tol, t0, e0
 ! Input arrays
-double precision, allocatable :: X(:,:)
+double complex, allocatable :: X(:,:)
 ! Functions
 integer :: FindMinPos, CalcTol
 ! Workspace arrays
 integer, allocatable :: index_level(:), index_pair(:,:,:)
+double precision, allocatable :: COEFF(:,:)
 integer, allocatable :: Perm(:), Perm_new(:), Perm_sol(:)
 integer, allocatable :: QPerm(:)
 
 ! MPI variables
 integer(4) :: my_rank, p, ierr, root, dummy
-double precision, allocatable :: X_MPI_temp(:)
+double complex, allocatable :: X_MPI_temp(:)
 integer, allocatable :: r_col_array(:)
 integer(4) :: mpi_stat(MPI_STATUS_SIZE)
 ! Timer variables
@@ -31,15 +33,15 @@ integer :: einit_root
 
 ! Objects
 type(prog_args) :: args_obj
-type(csd_generator) :: csdgen_obj
-type(csd_solution_set) :: csdss_Xinit, csdss_Xcur, csdss_Xnew, csdss_Xsol
+type(csd_generator_cplx) :: csdgen_obj
+type(csd_solution_set_cplx) :: csdss_Xinit, csdss_Xcur, csdss_Xnew, csdss_Xsol
 type(csd_write_handle) :: csdwh_obj
 
 ! Initialize a random seed for the RNG
 call init_random_seed(my_rank)
 
 if(my_rank == root) then
-    write(*,'(a)')"Performing decomposition of a real orthogonal matrix."
+    write(*,'(a)')"Performing decomposition of a complex unitary matrix."
     write(finput,'(a,a)')args_obj%fbase(1:args_obj%flength),".txt"
     write(*,'(a,a)')"Retrieving unitary matrix from file ",finput
     open(unit=1,file=finput,action='read')
@@ -48,20 +50,21 @@ if(my_rank == root) then
     M = 2**N
     Msq = M*M
     allocate(X(M,M))
-    allocate(X_MPI_temp(Msq))
-    X = 0.0d0
+    allocate(X_MPI_temp(M*M))
+    X = cmplx(0.0d0)
     do i = 1, d
     	do j = 1, d
-    		read(1,*)X(i,j)
+    		read(1,*)in_1,in_2
+    		X(i,j) = cmplx(in_1,in_2)
     	end do
     end do
     if(M /= d) then
     	do i = d+1, M
-    		X(i,i) = 1
+    		X(i,i) = cmplx(1.0d0,0.0d0)
     	end do
     end if
     close(1)
-    call Flatten(M,X,X_MPI_temp)
+    call Flatten_CPLX(M,X,X_MPI_temp)
 end if
 
 ! Broadcast the matrix X from the root process to all the other processes
@@ -73,9 +76,9 @@ if(my_rank /= root) then
     allocate(X(M,M))
     allocate(X_MPI_temp(Msq))
 end if
-call MPI_Bcast(X_MPI_temp,Msq,MPI_DOUBLE_PRECISION,root,MPI_COMM_WORLD,ierr)
+call MPI_Bcast(X_MPI_temp,Msq,MPI_DOUBLE_COMPLEX,root,MPI_COMM_WORLD,ierr)
 if(my_rank /= root) then
-    call Box(M,X_MPI_temp,X)
+    call Box_CPLX(M,X_MPI_temp,X)
 end if
 
 ! Start timing here so as to include time spent choosing and decomposing the initial permutation
@@ -86,10 +89,14 @@ allocate(r_col_array(p))
 ! Allocate input and output arrays
 allocate(index_level(M-1))
 allocate(index_pair(M/2,2,N))
+allocate(COEFF(M,M))
 index_level = 0
 index_pair = 0
+COEFF = 0.0d0
 ! index_level and index_pair are invariant per CSD invocation
 call CYG_INDEXTABLE(N,M,index_level,index_pair)
+! COEFF is also invariant per CSD invocation
+call CYGC_COEFF(N,M,COEFF)
 ! Allocate workspace arrays
 allocate(Perm(M))
 allocate(Perm_new(M))
@@ -110,7 +117,7 @@ else
     call qperm_generate(N,QPerm)
 end if
 ! Run object constructors
-call csdgen_obj%constructor(N,M,index_level,index_pair)
+call csdgen_obj%constructor(N,M,index_level,index_pair,COEFF)
 call csdss_Xinit%constructor(5,N,M)
 csdss_Xinit%arr(1)%toggle_csd = .false.
 csdss_Xinit%arr(5)%toggle_csd = .false.
@@ -119,9 +126,9 @@ call csdss_Xnew%constructor(5,N,M)
 call csdss_Xsol%constructor(5,N,M)
 call csdwh_obj%constructor(N)
 ! Convention: U = Q^T P^T U' P Q - CHECKED AND VERIFIED
-call permlisttomatrixtr(M,Perm,csdss_Xinit%arr(2)%X)                            ! P^T
-call permlisttomatrix(M,Perm,csdss_Xinit%arr(4)%X)                              ! P
-call qperm_process(N,M,csdss_Xinit,csdgen_obj,QPerm,X,ecur)
+call permlisttomatrixtr_CPLX(M,Perm,csdss_Xinit%arr(2)%X)                            ! P^T
+call permlisttomatrix_CPLX(M,Perm,csdss_Xinit%arr(4)%X)                              ! P
+call qperm_process_CPLX(N,M,csdss_Xinit,csdgen_obj,QPerm,X,ecur)
 ! Repeatedly find random permutations until the number of gates has been lowered relative to the root process (i.e. the identity permutation)
 einit_root = ecur
 call MPI_Bcast(einit_root,1,MPI_INTEGER8,root,MPI_COMM_WORLD,ierr)
@@ -134,11 +141,11 @@ if(my_rank /= root) then
             do i = 1, N
                 QPerm(i) = i
             end do
-            call qperm_process(N,M,csdss_Xinit,csdgen_obj,QPerm,X,ecur)
+            call qperm_process_CPLX(N,M,csdss_Xinit,csdgen_obj,QPerm,X,ecur)
             exit
         end if
         call qperm_generate(N,QPerm)
-        call qperm_process(N,M,csdss_Xinit,csdgen_obj,QPerm,X,ecur)
+        call qperm_process_CPLX(N,M,csdss_Xinit,csdgen_obj,QPerm,X,ecur)
         j = j + 1
     end do
 end if
@@ -158,7 +165,7 @@ history(1) = ecur
 
 do i = 1, args_obj%ITER_LIM
     Perm_new = Perm
-    call NeighbourhoodOpt(M,csdss_Xcur,csdss_Xnew,Perm_new)
+    call NeighbourhoodOpt_CPLX(M,csdss_Xcur,csdss_Xnew,Perm_new)
     call csdss_Xnew%run_csdr(csdgen_obj)
     enew = csdss_Xnew%csdr_ss_ct
     delta = enew - ecur
@@ -229,7 +236,7 @@ if(my_rank == m_pos-1) then
     write(2,*)
     do i = 1, M
         do j = 1, M
-            write(2,'(f15.9,a)',advance='no')csdss_Xsol%arr(3)%X(i,j)," "
+            write(2,'(f15.9,a,f16.9,a)',advance='no')real(csdss_Xsol%arr(3)%X(i,j)),"+",aimag(csdss_Xsol%arr(3)%X(i,j)),"i "
         end do
         write(2,*)
     end do
@@ -280,6 +287,7 @@ deallocate(history)
 deallocate(r_col_array)
 deallocate(index_level)
 deallocate(index_pair)
+deallocate(COEFF)
 deallocate(Perm)
 deallocate(Perm_new)
 deallocate(Perm_sol)
@@ -293,13 +301,13 @@ call csdss_Xnew%destructor()
 call csdss_Xsol%destructor()
 call csdwh_obj%destructor()
 
-end subroutine OptQC_REAL
+end subroutine OptQC_CPLX
 
-subroutine Box(M,source,dest)
+subroutine Box_CPLX(M,source,dest)
 
 implicit none
 integer :: M
-double precision :: source(M*M), dest(M,M)
+double complex :: source(M*M), dest(M,M)
 
 integer :: i, j, ct
 
@@ -312,13 +320,13 @@ do i = 1, M
 end do
 return
 
-end subroutine Box
+end subroutine Box_CPLX
 
-subroutine Flatten(M,source,dest)
+subroutine Flatten_CPLX(M,source,dest)
 
 implicit none
 integer :: M
-double precision :: source(M,M), dest(M*M)
+double complex :: source(M,M), dest(M*M)
 
 integer :: i, j, ct
 
@@ -331,4 +339,4 @@ do i = 1, M
 end do
 return
 
-end subroutine Flatten
+end subroutine Flatten_CPLX

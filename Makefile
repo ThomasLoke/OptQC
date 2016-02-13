@@ -4,7 +4,7 @@ progname = OptQC
 compiler = mpif90
 lpflags = -L$(MKLROOT)/lib/intel64 -lmkl_intel_lp64 -lmkl_intel_thread -lmkl_core -liomp5 -lpthread -lm
 switch = -O2 -i8 -r8 -warn all -nogen-interfaces -xHost -ipo 
-objects = OptQC_Bridge.o OptQC_Common.o OptQC_Common_Module.o OptQC_CSD.o OptQC_Main.o OptQC_Perm.o OptQC_WKVar.o
+objects = OptQC_Bridge.o OptQC_Common.o OptQC_Common_Module.o OptQC_CSD.o OptQC_Main.o OptQC_Perm.o OptQC_WKVar.o OptQC_CPLX_CSD.o OptQC_CPLX_Main.o OptQC_CPLX_Perm.o OptQC_CPLX_WKVar.o
 
 #Makefile
 $(progname): $(objects)
@@ -13,13 +13,18 @@ $(progname): $(objects)
 %.o: %.f90
 	$(compiler) -c $(switch) $<
 
+common_module.mod: OptQC_Common_Module.o
 OptQC_Bridge.o: common_module.mod
 OptQC_CSD.o: arrays_real.mod common_module.mod
 OptQC_Main.o: common_module.mod csd_real.mod
 OptQC_Perm.o: csd_real.mod
 arrays_real.mod: OptQC_WKVar.o
-common_module.mod: OptQC_Common_Module.o
 csd_real.mod: OptQC_CSD.o
+OptQC_CPLX_CSD.o: arrays_cplx.mod common_module.mod
+OptQC_CPLX_Main.o: common_module.mod csd_cplx.mod
+OptQC_CPLX_Perm.o: csd_cplx.mod
+arrays_cplx.mod: OptQC_CPLX_WKVar.o
+csd_cplx.mod: OptQC_CPLX_CSD.o
 
 #Cleaning files
 clean:

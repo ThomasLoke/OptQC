@@ -68,3 +68,15 @@ v0.5:
 - TODO: Test using non-reduced number of gates as objective function instead?
 - TODO: Remove output of gateseq.txt plz.
 - Decided to store current progress as v0.5 - planning to WRITE ALL THE CPLX CODE in the next version.
+
+v0.51:
+- RAWR TIME TO WRITE ALL THE CPLX CODE.
+- Modified the csd_write_handle_assign_target() procedure to be somewhat more generic.
+- Moved the csd_write_handle object to OptQC_CommonModule.f90 instead.
+- Copied OptQC_CPLX_WKVar.f90 into the folder.
+- Created OptQC_CPLX_CSD.f90 and did massive copying and SHO MUCH EDITING, based of code from CPLX implementation.
+- Edited makefile correspondingly.
+- Seems to now compile correctly for OptQC_CPLX_CSD.f90. WOOTS!
+- Design issues OP - permutation matrices being interpreted as complex matrices (and hence uses the complex decomposition) - terribly inefficient for permutation matrices, which are completely real.
+- Ended up with a gajillion segfaults during deallocation - also design issues are sads.
+- Decided to store current progress as v0.51 - overhauling objects using a combined real/cplx implementation.

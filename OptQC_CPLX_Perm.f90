@@ -1,9 +1,9 @@
-subroutine NeighbourhoodOpt(M,csdss_source,csdss_targ,Perm)
+subroutine NeighbourhoodOpt_CPLX(M,csdss_source,csdss_targ,Perm)
 
-use csd_real
+use csd_cplx
 
 implicit none
-type(csd_solution_set) :: csdss_source, csdss_targ
+type(csd_solution_set_cplx) :: csdss_source, csdss_targ
 integer :: M
 integer :: Perm(M)
 
@@ -17,22 +17,22 @@ do while (s2 == s1)
     s2 = RINT(M)
 end do
 ! Perform swap between elements s1 and s2
-call SwapElem(M,csdss_source%arr(3)%X,csdss_targ%arr(3)%X,s1,s2)
+call SwapElem_CPLX(M,csdss_source%arr(3)%X,csdss_targ%arr(3)%X,s1,s2)
 ! Reflect change in the permutation
 temp = Perm(s1)
 Perm(s1) = Perm(s2)
 Perm(s2) = temp
 ! Update permutation in target solution set
-call permlisttomatrixtr(M,Perm,csdss_targ%arr(2)%X)
-call permlisttomatrix(M,Perm,csdss_targ%arr(4)%X)
+call permlisttomatrixtr_CPLX(M,Perm,csdss_targ%arr(2)%X)
+call permlisttomatrix_CPLX(M,Perm,csdss_targ%arr(4)%X)
 
-end subroutine NeighbourhoodOpt
+end subroutine NeighbourhoodOpt_CPLX
 
-subroutine SwapElem(M,X,Z,s1,s2)
+subroutine SwapElem_CPLX(M,X,Z,s1,s2)
 
 implicit none
 integer :: M
-double precision :: X(M,M), Z(M,M)
+double complex :: X(M,M), Z(M,M)
 integer :: s1, s2
 
 integer :: i
@@ -58,13 +58,13 @@ end do
 
 return
 
-end subroutine SwapElem
+end subroutine SwapElem_CPLX
 
-subroutine ApplyPerm(M,X,Z,Perm)
+subroutine ApplyPerm_CPLX(M,X,Z,Perm)
 
 implicit none
 integer :: M
-double precision :: X(M,M), Z(M,M)
+double complex :: X(M,M), Z(M,M)
 integer :: Perm(M)
 
 integer :: i, j, row
@@ -78,14 +78,14 @@ end do
 
 return
 
-end subroutine ApplyPerm
+end subroutine ApplyPerm_CPLX
 
-subroutine permlisttomatrix(M,PermList,PermMat)
+subroutine permlisttomatrix_CPLX(M,PermList,PermMat)
 
 implicit none
 integer :: M
 integer :: PermList(M)
-double precision :: PermMat(M,M)
+double complex :: PermMat(M,M)
 
 integer :: i, j, temp
 
@@ -93,21 +93,21 @@ do i = 1, M
     temp = PermList(i)
     do j = 1, M
         if(j == temp) then
-            PermMat(i,j) = 1.0d0
+            PermMat(i,j) = cmplx(1.0d0)
         else
-            PermMat(i,j) = 0.0d0
+            PermMat(i,j) = cmplx(0.0d0)
         end if
     end do
 end do
 
-end subroutine permlisttomatrix
+end subroutine permlisttomatrix_CPLX
 
-subroutine permlisttomatrixtr(M,PermList,PermMatTr)
+subroutine permlisttomatrixtr_CPLX(M,PermList,PermMatTr)
 
 implicit none
 integer :: M
 integer :: PermList(M)
-double precision :: PermMatTr(M,M)
+double complex :: PermMatTr(M,M)
 
 integer :: i, j, temp
 
@@ -115,22 +115,22 @@ do i = 1, M
     temp = PermList(i)
     do j = 1, M
         if(j == temp) then
-            PermMatTr(j,i) = 1.0d0
+            PermMatTr(j,i) = cmplx(1.0d0)
         else
-            PermMatTr(j,i) = 0.0d0
+            PermMatTr(j,i) = cmplx(0.0d0)
         end if
     end do
 end do
 
-end subroutine permlisttomatrixtr
+end subroutine permlisttomatrixtr_CPLX
 
-subroutine qperm_compute(N,M,csd_obj,qperm)
+subroutine qperm_compute_CPLX(N,M,csd_obj,qperm)
 
-use csd_real
+use csd_cplx
 
 implicit none
 integer :: N, M
-type(csd_solution) :: csd_obj
+type(csd_solution_cplx) :: csd_obj
 integer :: qperm(N)
 
 integer, allocatable :: qperm_temp(:), perm(:)
@@ -165,7 +165,7 @@ do i = 1, M
 end do
 ! Construct matrix from the state permutation
 ! Note: Transpose of permutation - MAGIC DON'T TOUCH PLOX
-call permlisttomatrixtr(M,perm,csd_obj%X)
+call permlisttomatrixtr_CPLX(M,perm,csd_obj%X)
 ! Determine swap gate ordering
 ct = 0
 do i = 1, N-1
@@ -210,23 +210,23 @@ deallocate(qperm_temp)
 deallocate(perm)
 deallocate(bitval)
 
-end subroutine qperm_compute
+end subroutine qperm_compute_CPLX
 
-subroutine qperm_process(N,M,csdss_obj,csdgen_obj,QPerm,X,ecur)
+subroutine qperm_process_CPLX(N,M,csdss_obj,csdgen_obj,QPerm,X,ecur)
 
-use csd_real
+use csd_cplx
 
 implicit none
 integer :: N, M
-type(csd_solution_set) :: csdss_obj
-type(csd_generator) :: csdgen_obj
+type(csd_solution_set_cplx) :: csdss_obj
+type(csd_generator_cplx) :: csdgen_obj
 integer :: QPerm(N)
-double precision :: X(M,M)
+double complex :: X(M,M)
 integer :: ecur
 
 ! Construct state permutation matrix from qubit permutation
-call qperm_compute(N,M,csdss_obj%arr(5),QPerm)                              ! Q
-call qperm_reverse(N,csdss_obj%arr(5),csdss_obj%arr(1))                     ! Q^T
+call qperm_compute_CPLX(N,M,csdss_obj%arr(5),QPerm)                              ! Q
+call qperm_reverse_CPLX(N,csdss_obj%arr(5),csdss_obj%arr(1))                     ! Q^T
 ! Note: Q U Q^T = P^T U' P, so we treat Q U Q^T as the matrix to be decomposed
 csdss_obj%arr(3)%X = matmul(csdss_obj%arr(5)%X,X)                           ! Q U
 csdss_obj%arr(3)%X = matmul(csdss_obj%arr(3)%X,csdss_obj%arr(1)%X)          ! Q U Q^T
@@ -236,15 +236,15 @@ csdss_obj%csd_ss_ct = csdss_obj%arr(3)%csd_ct + csdss_obj%arr(1)%csd_ct + csdss_
 csdss_obj%csdr_ss_ct = csdss_obj%arr(3)%csdr_ct + csdss_obj%arr(1)%csdr_ct + csdss_obj%arr(5)%csdr_ct
 ecur = csdss_obj%csdr_ss_ct
 
-end subroutine qperm_process
+end subroutine qperm_process_CPLX
 
-subroutine qperm_reverse(N,csd_obj_source,csd_obj_targ)
+subroutine qperm_reverse_CPLX(N,csd_obj_source,csd_obj_targ)
 
-use csd_real
+use csd_cplx
 
 implicit none
 integer :: N
-type(csd_solution) :: csd_obj_source, csd_obj_targ
+type(csd_solution_cplx) :: csd_obj_source, csd_obj_targ
 
 integer :: i, j, idx, ct
 
@@ -260,4 +260,4 @@ end do
 csd_obj_targ%csd_ct = ct
 csd_obj_targ%csdr_ct = ct
 
-end subroutine qperm_reverse
+end subroutine qperm_reverse_CPLX

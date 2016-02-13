@@ -1,66 +1,69 @@
-module csd_real
+module csd_cplx
 
-use arrays_real
+use arrays_cplx
 use common_module
 
 implicit none
 
 double precision, parameter :: CUTOFF = 0.0000000001d0
 double precision, parameter :: PI = 3.1415926535897932384626433832795028841971693993751d0
+double complex, parameter :: C_ZERO = cmplx(0.0d0,0.0d0)
 
-type csd_solution
+type csd_solution_cplx
     integer :: N, M
-    double precision, allocatable :: X(:,:)
+    double complex, allocatable :: X(:,:)
     character(len=32), allocatable :: Circuit(:,:)          ! Note: By design, this is empty unless run_csdr is called
     integer :: csd_ct, csdr_ct
     logical :: neg                                          ! .true. if circuit represents -X, .false. otherwise
     logical :: toggle_csd                                   ! Runs csd/csdr procedure if .true., otherwise disallow any changes to variables (except via external subroutines)
 contains
-    procedure :: constructor => csd_solution_constructor
-    procedure :: destructor => csd_solution_destructor
-    procedure :: clean => csd_solution_clean
-    procedure :: copy => csd_solution_copy
-    procedure :: run_csd => csd_solution_run_csd
-    procedure :: run_csdr => csd_solution_run_csdr
-    procedure :: write_circuit => csd_solution_write_circuit
-end type csd_solution
+    procedure :: constructor => csd_solution_cplx_constructor
+    procedure :: destructor => csd_solution_cplx_destructor
+    procedure :: clean => csd_solution_cplx_clean
+    procedure :: copy => csd_solution_cplx_copy
+    procedure :: run_csd => csd_solution_cplx_run_csd
+    procedure :: run_csdr => csd_solution_cplx_run_csdr
+    procedure :: write_circuit => csd_solution_cplx_write_circuit
+end type csd_solution_cplx
 
-type csd_solution_set
+type csd_solution_set_cplx
     integer :: nset
     integer :: N, M
-    type(csd_solution), allocatable :: arr(:)
+    type(csd_solution_cplx), allocatable :: arr(:)
     integer :: csd_ss_ct, csdr_ss_ct
     logical :: neg
 contains
-    procedure :: constructor => csd_solution_set_constructor
-    procedure :: destructor => csd_solution_set_destructor
-    procedure :: clean => csd_solution_set_clean
-    procedure :: copy => csd_solution_set_copy
-    procedure :: run_csd => csd_solution_set_run_csd
-    procedure :: run_csdr => csd_solution_set_run_csdr
-    procedure :: write_circuit => csd_solution_set_write_circuit
-end type csd_solution_set
+    procedure :: constructor => csd_solution_set_cplx_constructor
+    procedure :: destructor => csd_solution_set_cplx_destructor
+    procedure :: clean => csd_solution_set_cplx_clean
+    procedure :: copy => csd_solution_set_cplx_copy
+    procedure :: run_csd => csd_solution_set_cplx_run_csd
+    procedure :: run_csdr => csd_solution_set_cplx_run_csdr
+    procedure :: write_circuit => csd_solution_set_cplx_write_circuit
+end type csd_solution_set_cplx
 
-type csd_generator
+type csd_generator_cplx
     ! Includes standard CSD and the reduction procedures
     ! Global variables throughout all subroutines
     integer :: N, M, Mh                                     ! Reminder: M = 2**N, Mh = M/2
     integer, pointer :: index_level(:), index_pair(:,:,:)   ! Remains constant for matrices of the same dimensions
-    double precision, allocatable :: GATEY(:,:), GATEPI(:,:)! Intermediate variables carrying CSD results - moved from csd_solution object
+    double precision, pointer :: COEFF(:,:)                 ! Remains constant for matrices of the same dimensions
+    double precision :: GATEPHASE
+    double precision, allocatable :: GATEY(:,:), GATEZ(:,:)
     ! Note: Could just store a pointer to the csd_solution object instead - but done this way for less indirection (i.e. more clarity)
-    double precision, pointer :: X(:,:)                     ! Intent: In
+    double complex, pointer :: X(:,:)                           ! Intent: In
     character(len=32), pointer :: Circuit(:,:)              ! Intent: Out
     integer, pointer :: csd_ct, csdr_ct                     ! Intent: Out
     logical, pointer :: neg                                 ! Intent: Out
     ! Workspace arrays
-    ! CYGR_CSD:
-    type(l_arr_dp_4) :: Z0, Z1
-    ! CYGR_BLKCSD:
-    type(l_arr_dp_2) :: X_blk, X11, X12, X21, X22, U1, U2, V1T, V2T
+    ! CYGC_CSD:
+    type(l_arr_dp_4_cplx) :: Z0, Z1
+    ! CYGC_BLKCSD:
+    type(l_arr_dp_2_cplx) :: X_blk, X11, X12, X21, X22, U1, U2, V1T, V2T
     type(l_arr_dp_1) :: GATEY_blk
     type(l_arr_int_1) :: IWORK
-    ! CYGR_CUTGATE:
-    integer, allocatable :: Z_array(:,:), PI_array(:,:), GATEY_sign(:)
+    ! CYGC_CSDPHASE:
+    double precision, allocatable :: PHASEZ(:,:), PARR(:), COEFF_WORK(:,:), IPIV(:)
     ! ReduceSolution:
     character(len=20), allocatable :: C_Num_Bin(:,:)
     double precision, allocatable :: Type_Param(:)
@@ -70,25 +73,25 @@ type csd_generator
     ! Scratch variables between ReduceSolution and (GroupGates,ReduceGroups)
     integer :: N_Type, N_Total
 contains
-    procedure :: constructor => csd_generator_constructor
-    procedure :: destructor => csd_generator_destructor
-    procedure :: assign_target => csd_generator_assign_target
-    procedure :: nullify_target => csd_generator_nullify_target
-    procedure :: run_csd => csd_generator_run_csd
-    procedure :: run_blkcsd => csd_generator_run_blkcsd
-    procedure :: run_cutgate => csd_generator_run_cutgate
-    procedure :: GateCount => csd_generator_GateCount
-    procedure :: ReduceSolution => csd_generator_ReduceSolution
-    procedure :: GroupGates => csd_generator_GroupGates
-    procedure :: ReduceGroups => csd_generator_ReduceGroups
-end type csd_generator
+    procedure :: constructor => csd_generator_cplx_constructor
+    procedure :: destructor => csd_generator_cplx_destructor
+    procedure :: assign_target => csd_generator_cplx_assign_target
+    procedure :: nullify_target => csd_generator_cplx_nullify_target
+    procedure :: run_csd => csd_generator_cplx_run_csd
+    procedure :: run_blkcsd => csd_generator_cplx_run_blkcsd
+    procedure :: run_csdphase => csd_generator_cplx_run_csdphase
+    procedure :: GateCount => csd_generator_cplx_GateCount
+    procedure :: ReduceSolution => csd_generator_cplx_ReduceSolution
+    procedure :: GroupGates => csd_generator_cplx_GroupGates
+    procedure :: ReduceGroups => csd_generator_cplx_ReduceGroups
+end type csd_generator_cplx
 
 contains
 
-subroutine csd_solution_constructor(this,N,M)
+subroutine csd_solution_cplx_constructor(this,N,M)
 
 implicit none
-class(csd_solution) :: this
+class(csd_solution_cplx) :: this
 integer :: N, M
 
 this%N = N
@@ -97,40 +100,40 @@ this%csd_ct = 0
 this%csdr_ct = 0
 allocate(this%X(M,M))
 allocate(this%Circuit(N+1,M*M/2+M))
-this%X = 0.0d0
+this%X = C_ZERO
 this%Circuit = ""
 this%neg = .false.
 this%toggle_csd = .true.
 
-end subroutine csd_solution_constructor
+end subroutine csd_solution_cplx_constructor
 
-subroutine csd_solution_destructor(this)
+subroutine csd_solution_cplx_destructor(this)
 
 implicit none
-class(csd_solution) :: this
+class(csd_solution_cplx) :: this
 
 deallocate(this%X)
 deallocate(this%Circuit)
 
-end subroutine csd_solution_destructor
+end subroutine csd_solution_cplx_destructor
 
-subroutine csd_solution_clean(this)
+subroutine csd_solution_cplx_clean(this)
 
 implicit none
-class(csd_solution) :: this
+class(csd_solution_cplx) :: this
 
 this%Circuit = ""
 this%csd_ct = 0
 this%csdr_ct = 0
 this%neg = .false.
 
-end subroutine csd_solution_clean
+end subroutine csd_solution_cplx_clean
 
-subroutine csd_solution_copy(this,source)
+subroutine csd_solution_cplx_copy(this,source)
 
 implicit none
-class(csd_solution) :: this
-type(csd_solution) :: source
+class(csd_solution_cplx) :: this
+type(csd_solution_cplx) :: source
 
 this%X = source%X
 this%Circuit = source%Circuit
@@ -139,13 +142,13 @@ this%csdr_ct = source%csdr_ct
 this%neg = source%neg
 this%toggle_csd = source%toggle_csd
 
-end subroutine csd_solution_copy
+end subroutine csd_solution_cplx_copy
 
-subroutine csd_solution_run_csd(this,generator)
+subroutine csd_solution_cplx_run_csd(this,generator)
 
 implicit none
-class(csd_solution) :: this
-type(csd_generator) :: generator
+class(csd_solution_cplx) :: this
+type(csd_generator_cplx) :: generator
 
 if(this%toggle_csd == .true.) then
     call this%clean()
@@ -154,13 +157,13 @@ if(this%toggle_csd == .true.) then
     call generator%nullify_target()
 end if
 
-end subroutine csd_solution_run_csd
+end subroutine csd_solution_cplx_run_csd
 
-subroutine csd_solution_run_csdr(this,generator)
+subroutine csd_solution_cplx_run_csdr(this,generator)
 
 implicit none
-class(csd_solution) :: this
-type(csd_generator) :: generator
+class(csd_solution_cplx) :: this
+type(csd_generator_cplx) :: generator
 
 if(this%toggle_csd == .true.) then
     call this%clean()
@@ -170,12 +173,12 @@ if(this%toggle_csd == .true.) then
     call generator%nullify_target()
 end if
 
-end subroutine csd_solution_run_csdr
+end subroutine csd_solution_cplx_run_csdr
 
-subroutine csd_solution_write_circuit(this,wh)
+subroutine csd_solution_cplx_write_circuit(this,wh)
 
 implicit none
-class(csd_solution) :: this
+class(csd_solution_cplx) :: this
 type(csd_write_handle) :: wh
 
 if(this%csdr_ct == 0) then
@@ -190,12 +193,12 @@ call wh%write_circuit()
 call wh%nullify_target()
 call wh%postamble()
 
-end subroutine csd_solution_write_circuit
+end subroutine csd_solution_cplx_write_circuit
 
-subroutine csd_solution_set_constructor(this,nset,N,M)
+subroutine csd_solution_set_cplx_constructor(this,nset,N,M)
 
 implicit none
-class(csd_solution_set) :: this
+class(csd_solution_set_cplx) :: this
 integer :: nset, N, M
 
 integer :: i
@@ -210,12 +213,12 @@ end do
 this%csd_ss_ct = 0
 this%csdr_ss_ct = 0
 
-end subroutine csd_solution_set_constructor
+end subroutine csd_solution_set_cplx_constructor
 
-subroutine csd_solution_set_destructor(this)
+subroutine csd_solution_set_cplx_destructor(this)
 
 implicit none
-class(csd_solution_set) :: this
+class(csd_solution_set_cplx) :: this
 
 integer :: i
 
@@ -224,25 +227,25 @@ do i = 1, this%nset
 end do
 deallocate(this%arr)
 
-end subroutine csd_solution_set_destructor
+end subroutine csd_solution_set_cplx_destructor
 
-subroutine csd_solution_set_clean(this)
+subroutine csd_solution_set_cplx_clean(this)
 
 implicit none
-class(csd_solution_set) :: this
+class(csd_solution_set_cplx) :: this
 
 ! Note: Cleaning of csd_solution objects is done individually in their call to run_csd or run_csdr
 this%csd_ss_ct = 0
 this%csdr_ss_ct = 0
 this%neg = .false.
 
-end subroutine csd_solution_set_clean
+end subroutine csd_solution_set_cplx_clean
 
-subroutine csd_solution_set_copy(this,source)
+subroutine csd_solution_set_cplx_copy(this,source)
 
 implicit none
-class(csd_solution_set) :: this
-type(csd_solution_set) :: source
+class(csd_solution_set_cplx) :: this
+type(csd_solution_set_cplx) :: source
 
 integer :: i
 
@@ -253,13 +256,13 @@ this%csd_ss_ct = source%csd_ss_ct
 this%csdr_ss_ct = source%csdr_ss_ct
 this%neg = source%neg
 
-end subroutine csd_solution_set_copy
+end subroutine csd_solution_set_cplx_copy
 
-subroutine csd_solution_set_run_csd(this,generator)
+subroutine csd_solution_set_cplx_run_csd(this,generator)
 
 implicit none
-class(csd_solution_set) :: this
-type(csd_generator) :: generator
+class(csd_solution_set_cplx) :: this
+type(csd_generator_cplx) :: generator
 
 integer :: i
 
@@ -270,13 +273,13 @@ do i = 1, this%nset
     if(this%arr(i)%neg == .true.) this%neg = .not.this%neg
 end do
 
-end subroutine csd_solution_set_run_csd
+end subroutine csd_solution_set_cplx_run_csd
 
-subroutine csd_solution_set_run_csdr(this,generator)
+subroutine csd_solution_set_cplx_run_csdr(this,generator)
 
 implicit none
-class(csd_solution_set) :: this
-type(csd_generator) :: generator
+class(csd_solution_set_cplx) :: this
+type(csd_generator_cplx) :: generator
 
 integer :: i
 
@@ -288,12 +291,12 @@ do i = 1, this%nset
     if(this%arr(i)%neg == .true.) this%neg = .not.this%neg
 end do
 
-end subroutine csd_solution_set_run_csdr
+end subroutine csd_solution_set_cplx_run_csdr
 
-subroutine csd_solution_set_write_circuit(this,wh)
+subroutine csd_solution_set_cplx_write_circuit(this,wh)
 
 implicit none
-class(csd_solution_set) :: this
+class(csd_solution_set_cplx) :: this
 type(csd_write_handle) :: wh
 
 integer :: i
@@ -314,14 +317,15 @@ do i = this%nset, 1, -1
 end do
 call wh%postamble()
 
-end subroutine csd_solution_set_write_circuit
+end subroutine csd_solution_set_cplx_write_circuit
 
-subroutine csd_generator_constructor(this,N,M,index_level,index_pair)
+subroutine csd_generator_cplx_constructor(this,N,M,index_level,index_pair,COEFF)
 
 implicit none
-class(csd_generator) :: this
+class(csd_generator_cplx) :: this
 integer :: N, M
 integer, target :: index_level(M-1), index_pair(M/2,2,N)
+double precision, target :: COEFF(M,M)
 integer :: i, Mh, size0, size1, num0, num1
 
 Mh = M / 2
@@ -330,8 +334,9 @@ this%M = M
 this%Mh = Mh
 this%index_level => index_level
 this%index_pair => index_pair
+this%COEFF => COEFF
 allocate(this%GATEY(M/2,M-1))
-allocate(this%GATEPI(M/2,N))
+allocate(this%GATEZ(M/2,M+N-1))
 call this%nullify_target()
 call this%Z0%constructor(N)
 call this%Z1%constructor(N)
@@ -365,9 +370,10 @@ do i = 1, N
     call this%GATEY_blk%l(i)%constructor(size1)
     call this%IWORK%l(i)%constructor(size1)
 end do
-allocate(this%Z_array(M,M))
-allocate(this%PI_array(M,N))
-allocate(this%GATEY_sign(Mh))
+allocate(this%PHASEZ(M,M+N))
+allocate(this%PARR(M))
+allocate(this%COEFF_WORK(M,M))
+allocate(this%IPIV(M))
 allocate(this%C_Num_Bin(Mh,Mh))
 allocate(this%Type_Param(Mh))
 allocate(this%N_Per_Type(Mh))
@@ -376,17 +382,18 @@ this%size1 = 0
 this%num0 = 0
 this%num1 = 0
 
-end subroutine csd_generator_constructor
+end subroutine csd_generator_cplx_constructor
 
-subroutine csd_generator_destructor(this)
+subroutine csd_generator_cplx_destructor(this)
 
 implicit none
-class(csd_generator) :: this
+class(csd_generator_cplx) :: this
 
 nullify(this%index_level)
 nullify(this%index_pair)
+nullify(this%COEFF)
 deallocate(this%GATEY)
-deallocate(this%GATEPI)
+deallocate(this%GATEZ)
 call this%nullify_target()
 call this%Z0%destructor()
 call this%Z1%destructor()
@@ -401,20 +408,21 @@ call this%V1T%destructor()
 call this%V2T%destructor()
 call this%GATEY_blk%destructor()
 call this%IWORK%destructor()
-deallocate(this%Z_array)
-deallocate(this%PI_array)
-deallocate(this%GATEY_sign)
+deallocate(this%PHASEZ)
+deallocate(this%PARR)
+deallocate(this%COEFF_WORK)
+deallocate(this%IPIV)
 deallocate(this%C_Num_Bin)
 deallocate(this%Type_Param)
 deallocate(this%N_Per_Type)
 
-end subroutine csd_generator_destructor
+end subroutine csd_generator_cplx_destructor
 
-subroutine csd_generator_assign_target(this,csd_ss)
+subroutine csd_generator_cplx_assign_target(this,csd_ss)
 
 implicit none
-class(csd_generator) :: this
-type(csd_solution), target :: csd_ss
+class(csd_generator_cplx) :: this
+type(csd_solution_cplx), target :: csd_ss
 
 ! Bind pointers to the csd_solution elements
 this%X => csd_ss%X
@@ -427,12 +435,12 @@ this%csdr_ct = 0
 this%neg => csd_ss%neg
 this%neg = .false.
 
-end subroutine csd_generator_assign_target
+end subroutine csd_generator_cplx_assign_target
 
-subroutine csd_generator_nullify_target(this)
+subroutine csd_generator_cplx_nullify_target(this)
 
 implicit none
-class(csd_generator) :: this
+class(csd_generator_cplx) :: this
 
 nullify(this%X)
 nullify(this%Circuit)
@@ -440,19 +448,20 @@ nullify(this%csd_ct)
 nullify(this%csdr_ct)
 nullify(this%neg)
 
-end subroutine csd_generator_nullify_target
+end subroutine csd_generator_cplx_nullify_target
 
-subroutine csd_generator_run_csd(this)
+subroutine csd_generator_cplx_run_csd(this)
 
 implicit none
-class(csd_generator) :: this
+class(csd_generator_cplx) :: this
 
 integer :: N, i, j
 
 N = this%N
 ! Clean up intermediate variables first
+this%GATEPHASE = 0.0d0
 this%GATEY = 0.0d0
-this%GATEPI = 0.0d0
+this%GATEZ = 0.0d0
 
 !	Cosine Sine Decomposition (CSD) of X recursively until the Nth level
 !	The 1st level
@@ -460,8 +469,7 @@ this%size0 = this%M
 this%size1 = this%Mh
 this%num0 = 1
 this%num1 = 2
-this%Z1%l(1)%arr = 0.0d0
-!index_Y = this%Mh
+this%Z1%l(1)%arr = C_ZERO
 call this%run_blkcsd(1,1)
 this%Z0%l(1)%arr = this%Z1%l(1)%arr
 
@@ -471,7 +479,7 @@ do i = 2, N
     this%size0 = this%size1 * 2
     this%num0 = 2**(i-1)
     this%num1 = this%num0 * 2
-    this%Z1%l(i)%arr = 0.0d0
+    this%Z1%l(i)%arr = C_ZERO
     do j = 1, this%num0
         call this%run_blkcsd(i,j)
     end do
@@ -479,25 +487,28 @@ do i = 2, N
 end do
 
 !	Step 3: CYGC_CSD processes the CSD results
-!	        In this step, we obtain all the Ry Gates and the PI Gates for X: GATEY, GATEPI
-call this%run_cutgate()
+!	In this step, we obtain all the Rz Gates and the final Phase Gate for X: GATEZ, GATEPHASEcall this%run_cutgate()
+this%COEFF_WORK = this%COEFF
+call this%run_csdphase()
 
 !   Step 4 (added): Obtain count of gates
 call this%GateCount()
 
-end subroutine csd_generator_run_csd
+end subroutine csd_generator_cplx_run_csd
 
-subroutine csd_generator_run_blkcsd(this,i,j)
+subroutine csd_generator_cplx_run_blkcsd(this,i,j)
 
 implicit none
-class(csd_generator), target :: this
+class(csd_generator_cplx), target :: this
 integer :: i, j
 
 integer :: index_Y, size0, size1, num0, num1
-double precision, pointer :: X(:,:,:), U(:,:,:), V(:,:,:), GATEY(:), X_blk(:,:), X11(:,:), X12(:,:), X21(:,:), X22(:,:), U1(:,:), U2(:,:), V1T(:,:), V2T(:,:), GATEY_blk(:)
+double complex, pointer :: X(:,:,:), U(:,:,:), V(:,:,:), X_blk(:,:), X11(:,:), X12(:,:), X21(:,:), X22(:,:), U1(:,:), U2(:,:), V1T(:,:), V2T(:,:)
+double precision, pointer :: GATEY(:), GATEY_blk(:)
 integer, pointer :: IWORK(:)
-double precision, allocatable :: WORK(:)
-integer :: LWORK, INFO
+double complex, allocatable :: WORK(:)
+double precision, allocatable :: RWORK(:)
+integer :: LWORK, LRWORK, INFO
 integer :: k, k1, k2
 
 if(i==1) then
@@ -531,15 +542,15 @@ V2T => this%V2T%l(i)%arr
 GATEY_blk => this%GATEY_blk%l(i)%arr
 IWORK => this%IWORK%l(i)%arr
 
-X_blk = 0.0d0
-X11 = 0.0d0
-X12 = 0.0d0
-X21 = 0.0d0
-X22 = 0.0d0
-U1 = 0.0d0
-U2 = 0.0d0
-V1T = 0.0d0
-V2T = 0.0d0
+X_blk = C_ZERO
+X11 = C_ZERO
+X12 = C_ZERO
+X21 = C_ZERO
+X22 = C_ZERO
+U1 = C_ZERO
+U2 = C_ZERO
+V1T = C_ZERO
+V2T = C_ZERO
 GATEY_blk = 0.0d0
 IWORK = 0
 
@@ -552,7 +563,7 @@ do k = 1, num0
 	do k1 = 1,size0
 		do k2 = 1,size0
 			if(abs(X_blk(k1,k2)) <= CUTOFF) then
-				X_blk(k1,k2) = 0.0
+				X_blk(k1,k2) = C_ZERO
 			end if
 		end do
 	end do
@@ -561,21 +572,33 @@ do k = 1, num0
 	X21 = X_blk(size1+1:size0,1:size1)
 	X22 = X_blk(size1+1:size0,size1+1:size0)
 	LWORK = -1
+	LRWORK = -1
 	allocate(WORK(1))
-	WORK = 0
+	WORK = C_ZERO
+	allocate(RWORK(1))
+	RWORK = 0.0d0
     !	Set LWORK = -1, then a workspace query is assumed; the subroutine only calculates the optimal size of the WORK array, returns this value as the first entry of the work array.
-	call DORCSD('Y', 'Y', 'Y', 'Y', 'N', 'O', size0, size1, size1, X11,&
-size1, X12, size1, X21, size1, X22, size1, GATEY_blk, U1, size1, U2, &
-size1, V1T, size1, V2T, size1, WORK, LWORK, IWORK, INFO)
+    !	Set LRWORK = -1, then a workspace query is assumed; the subroutine only calculates the optimal size of the RWORK array, returns this value as the first entry of the work array.
+	call ZUNCSD('Y', 'Y', 'Y', 'Y', 'N', 'O', size0, size1, size1, X11, &
+size1, X12, size1, X21, size1, X22, size1, GATEY_blk, U1, size1, U2,&
+size1, V1T, size1, V2T, size1, WORK, LWORK, RWORK, LRWORK, IWORK, &
+INFO)
 	!	Now set LWORK = WORK(1)
+    !	Now set LRWORK = RWORK(1)
 	LWORK = int(WORK(1))
+	LRWORK = int(RWORK(1))
 	deallocate(WORK)
+	deallocate(RWORK)
 	allocate(WORK(LWORK))
-	WORK = 0
-	call DORCSD('Y', 'Y', 'Y', 'Y', 'N', 'O', size0, size1, size1, X11, &
+	WORK = C_ZERO
+	allocate(RWORK(LRWORK))
+	RWORK = 0.0d0
+	call ZUNCSD('Y', 'Y', 'Y', 'Y', 'N', 'O', size0, size1, size1, X11, &
 size1, X12, size1, X21, size1, X22, size1, GATEY_blk, U1, size1, U2, &
-size1, V1T, size1, V2T, size1, WORK, LWORK, IWORK, INFO)
+size1, V1T, size1, V2T, size1, WORK, LWORK, RWORK, LRWORK, IWORK, &
+INFO)
 	deallocate(WORK)
+	deallocate(RWORK)
 	U(:,:,2*k-1) = U1
 	U(:,:,2*k) = U2
 	V(:,:,2*k-1) = V1T
@@ -586,16 +609,16 @@ end do
 GATEY = GATEY/PI
 return
 
-end subroutine csd_generator_run_blkcsd
+end subroutine csd_generator_cplx_run_blkcsd
 
-subroutine csd_generator_run_cutgate(this)
+subroutine csd_generator_cplx_run_csdphase(this)
 
 implicit none
-class(csd_generator), target :: this
+class(csd_generator_cplx), target :: this
 
 integer :: N, M
-double precision, pointer :: Z(:,:)
-integer :: i, j, leng
+double complex, pointer :: Z(:,:)
+integer :: i, j, idx, INFO
 
 N = this%N
 M = this%M
@@ -603,72 +626,65 @@ M = this%M
 ! Initialize pointers to elements of the csd_generator object
 Z => this%Z0%l(N)%arr(1,1,:,:)
 
-!	Z(j) = diag(Z_array(j)) (j = 1,2,...,2**N), and Z(j) or Z_array(j) contains only 1 or -1.
-!	In this SUBROUTINE, to make it short, the input Z(j) = Z_array(j), namely, Z(j) is a M-length array, and Z is a 2D table with the dimension
+!	Z(j) = diag(exp(i*Pi*PHASEZ(j,1:M))) (j = 1,2,...,2**N)
+!	In this SUBROUTINE, to make it short, the input Z(j) = exp(i*Pi*PHASEZ(j,1:M)), namely, Z(j) is a M-length array, and Z is a 2D table with the dimension
 !	(M,M+N)
-!	e.g. Z(j) = [1,-1,-1,1,-1,1,-1,-1]
-this%Z_array = NINT(Z)
-do i = 2,M
-	this%Z_array(:,i) = this%Z_array(:,i-1)*this%Z_array(:,i)
-end do
+!	Here we transform Z/ into PHASEZ
+this%PHASEZ = atan2(aimag(Z),real(Z))/PI
 
-!	Decide the Ry Gates "GATEY"
-this%GATEY_sign = 0
-do i = 1,M-1
-    j = this%index_level(i)
-    this%GATEY_sign = this%Z_array(this%index_pair(:,1,j),i)*this%Z_array(this%index_pair(:,2,j),i)
-	this%GATEY(:,i) = this%GATEY_sign*this%GATEY(:,i)
-end do
-
-!	Decide the PI Gates "GATEPI"
-this%PI_array(:,:) = 0
-this%PI_array(:,N) = this%Z_array(:,M)
-do i = 1,N-1
-	leng = 2**i
-	do j = 1, 2**(N-i)
-		if (this%PI_array(leng*(j-1)+1,N+1-i) == -1) then
-			this%PI_array(leng*(j-1)+1:leng*j,N+1-i) = -this%PI_array(leng*(j-1)+1:leng*j,N+1-i)
-			this%PI_array(leng*(j-1)+1:leng*j,N-i) = -1
-		else
-			this%PI_array(leng*(j-1)+1:leng*j,N-i) = 1
-		end if
+!	Decide the Rz Gates "GATEZ" (The first (M-1) Rz Gates)
+do i = 1, M-1
+	idx = this%index_level(i)
+	this%PARR = 0.0d0
+	do j = 1, M/2
+		this%PARR(this%index_pair(j,:,idx)) = -0.5d0*sum(this%PHASEZ(this%index_pair(j,:,idx),i))
 	end do
+	this%PHASEZ(:,i) = this%PHASEZ(:,i) + this%PARR
+	this%GATEZ(:,i) = this%PHASEZ(this%index_pair(:,1,idx),i)
+	this%PHASEZ(:,i+1) = this%PHASEZ(:,i+1) - this%PARR
 end do
-if (this%PI_array(1,1) == -1) then
-	this%PI_array(:,1) = -this%PI_array(:,1)
-	this%neg = .true.
-else
-    this%neg = .false.
-end if
 
-do i = 1,N
-	leng = 2**(N+1-i)
-	do j = 1,2**(i-1)
-		this%GATEPI(j,i) = this%PI_array(leng*j,i)
-	end do
+!	Decide the Rz Gates "GATEZ" (The last N Rz Gates) and the Final Phase Gate "GATEPHASE"
+this%IPIV = 0.0d0
+call DGESV(M,1,this%COEFF_WORK,M,this%IPIV,this%PHASEZ(:,M),M,INFO)
+do i = 1, N
+	this%GATEZ(1:2**(N-i),M+i-1) = this%PHASEZ(2**N-2**(N+1-i)+1:2**N-2**(N-i),M)
 end do
+this%GATEPHASE = this%PHASEZ(M,M)
+
+!	Set "GATEZ" and "GATEPHASE" within the range of (-1,1)
+this%GATEZ = this%GATEZ-2.0d0*nint(this%GATEZ*0.5d0)
+this%GATEPHASE = this%GATEPHASE-2.0d0*nint(this%GATEPHASE*0.5d0)
 return
 
-end subroutine csd_generator_run_cutgate
+end subroutine csd_generator_cplx_run_csdphase
 
-subroutine csd_generator_GateCount(this)
+subroutine csd_generator_cplx_GateCount(this)
 
 implicit none
-class(csd_generator) :: this
+class(csd_generator_cplx) :: this
 
-integer :: i, j, res
+integer :: i, j, idx, res
 
-res = 0
+if(abs(this%GATEPHASE) > CUTOFF) then
+    res = 1
+else
+    res = 0
+end if
 do i = 1, this%N
+    idx = this%M+this%N-i
     do j = 1, 2**(i-1)
-		if (abs(this%GATEPI(j,i)+1.0d0) <= CUTOFF) then
+		if (abs(this%GATEZ(j,idx)) > CUTOFF) then
 			res = res + 1
 		end if
 	end do
 end do
 do i = this%M-1, 1, -1
-    do j = this%Mh, 1, -1
+    do j = 1, this%M/2
 		if (abs(this%GATEY(j,i)) > CUTOFF) then
+			res = res + 1
+		end if
+		if (abs(this%GATEZ(j,i)) > CUTOFF) then
 			res = res + 1
 		end if
 	end do
@@ -676,68 +692,70 @@ end do
 this%csd_ct = res
 return
 
-end subroutine csd_generator_GateCount
+end subroutine csd_generator_cplx_GateCount
 
-subroutine csd_generator_ReduceSolution(this)
+subroutine csd_generator_cplx_ReduceSolution(this)
 
 implicit none
-class(csd_generator) :: this
-integer :: N, ct
+class(csd_generator_cplx) :: this
+integer :: N, M, ct
 integer :: i, j, k, p, ref, row, lb, rb
 character(len=20) :: workstr
 integer :: IsEmpty
 
 ! Includes update of the count of the reduced number of gates at the end
 N = this%N
+M = this%M
 ct = 0
 this%Circuit = ""
 ! Form the circuit for the reduced solution.
-! GATEPI
-ct = 0
-do i = 1, N
+! GATEPHASE
+if(abs(this%GATEPHASE) > CUTOFF) then
+    this%Circuit(1,1) = '& \gate{\Phi}'
+    this%Circuit(2:N,1) = '& \qw'
+    write(this%Circuit(N+1,1),302) this%GATEPHASE
+    ct = 1
+end if
+! GATEZ
+do i = 1,N
     lb = 22-i
-    call this%GroupGates(2**(i-1),this%GATEPI(:,i),-1.0d0)
+    call this%GroupGates(2**(i-1),this%GATEZ(:,M+N-i),0.0d0)
     call this%ReduceGroups()
-    ! There should only be one type, that is, Type_Param(1) = -1.0d0
-    if(this%N_Type > 1) then
-        write(*,*)"Error! GATEPI value different to -1.0d0 encountered. GATEPI section:"
-        write(*,*)this%GATEPI(:,i)
-        write(*,*)"Terminating program."
-        call exit(1)
-    end if
-    do k = 1, this%N_Per_Type(1)
-        ct = ct+1
-        if(i > 1) then
-            workstr = this%C_Num_Bin(1,k)
-            do row = 1, i-1
-                p = 21-i+row
-                if(workstr(p:p)=='0') then
-                    this%Circuit(row,ct) = '& \ctrlo{1}'
-                else if(workstr(p:p)=='1') then
-                    this%Circuit(row,ct) = '& \ctrl{1}'
-                else
-                    ! Case where workstr(p:p) = '*'
-                    if(row > 1 .and. IsEmpty(workstr,lb,p-1)==0) then
-                        this%Circuit(row,ct) = '& \qw \qwx[1]'
+    do j = 1, this%N_Type
+        do k = 1, this%N_Per_Type(j)
+            ct = ct+1
+            if(i > 1) then
+                workstr = this%C_Num_Bin(j,k)
+                do row = 1, i-1
+                    p = 21-i+row
+                    if(workstr(p:p)=='0') then
+                        this%Circuit(row,ct) = '& \ctrlo{1}'
+                    else if(workstr(p:p)=='1') then
+                        this%Circuit(row,ct) = '& \ctrl{1}'
                     else
-                        this%Circuit(row,ct) = '& \qw'
+                        ! Case where workstr(p:p) = '*'
+                        if(row > 1 .and. IsEmpty(workstr,lb,p-1)==0) then
+                            this%Circuit(row,ct) = '& \qw \qwx[1]'
+                        else
+                            this%Circuit(row,ct) = '& \qw'
+                        end if
                     end if
-                end if
-            end do
-        end if
-        this%Circuit(i,ct) = '& \gate{\pi}'
-        if(i < N) then
-            do row = i+1,N
-                this%Circuit(row,ct) = '& \qw'
-            end do
-        end if
-        this%Circuit(N+1,ct) = '&'
+                end do
+            end if
+            this%Circuit(i,ct) = '& \gate{R_z}'
+            if(i < N) then
+                do row = i+1,N
+                    this%Circuit(row,ct) = '& \qw'
+                end do
+            end if
+            write(this%Circuit(N+1,ct),302)this%Type_Param(j)
+        end do
     end do
 end do
-!GATEY
+! GATEY,GATEZ
 lb = 22-N
 rb = 20
-do i = this%M-1, 1, -1
+do i = M-1, 1, -1
     ref = this%index_level(i)
     call this%GroupGates(this%Mh,this%GATEY(:,i),0.0d0)
     call this%ReduceGroups()
@@ -749,6 +767,7 @@ do i = this%M-1, 1, -1
             do row = 1,N-1
                 p = 21-N+row
 				if(row < ref) then
+                    ! Qubits before target
 					if (workstr(p:p)=='0') then
 						this%Circuit(row,ct) = '& \ctrlo{1}'
 					else if(workstr(p:p)=='1') then
@@ -762,6 +781,49 @@ do i = this%M-1, 1, -1
                         end if
 					end if
 				else
+                    ! Qubits after target
+					if(workstr(p:p)=='0') then
+						this%Circuit(row+1,ct) = '& \ctrlo{-1}'
+					else if(workstr(p:p)=='1') then
+						this%Circuit(row+1,ct) = '& \ctrl{-1}'
+                    else
+                        ! Case where workstr(p:p) = '*'
+                        if(row < N-1 .and. IsEmpty(workstr,p+1,rb)==0) then
+                            this%Circuit(row+1,ct) = '& \qw \qwx[-1]'
+                        else
+                            this%Circuit(row+1,ct) = '& \qw'
+                        end if
+					end if
+				end if
+			end do
+			write(this%Circuit(N+1,ct),302)this%Type_Param(j)
+        end do
+    end do
+    call this%GroupGates(this%Mh,this%GATEZ(:,i),0.0d0)
+    call this%ReduceGroups()
+    do j = 1, this%N_Type
+        do k = 1, this%N_Per_Type(j)
+            ct = ct+1
+            workstr = this%C_Num_Bin(j,k)
+            this%Circuit(ref,ct) = '& \gate{R_z}'
+            do row = 1,N-1
+                p = 21-N+row
+				if(row < ref) then
+                    ! Qubits before target
+					if (workstr(p:p)=='0') then
+						this%Circuit(row,ct) = '& \ctrlo{1}'
+					else if(workstr(p:p)=='1') then
+						this%Circuit(row,ct) = '& \ctrl{1}'
+                    else
+                        ! Case where workstr(p:p) = '*'
+                        if(row > 1 .and. IsEmpty(workstr,lb,p-1)==0) then
+                            this%Circuit(row,ct) = '& \qw \qwx[1]'
+                        else
+                            this%Circuit(row,ct) = '& \qw'
+                        end if
+					end if
+				else
+                    ! Qubits after target
 					if(workstr(p:p)=='0') then
 						this%Circuit(row+1,ct) = '& \ctrlo{-1}'
 					else if(workstr(p:p)=='1') then
@@ -783,12 +845,12 @@ end do
 302 format('& ',F7.4)
 this%csdr_ct = ct
 
-end subroutine csd_generator_ReduceSolution
+end subroutine csd_generator_cplx_ReduceSolution
 
-subroutine csd_generator_GroupGates(this,extent,Gate_Param,Sig_Offset)
+subroutine csd_generator_cplx_GroupGates(this,extent,Gate_Param,Sig_Offset)
 
 implicit none
-class(csd_generator) :: this
+class(csd_generator_cplx) :: this
 integer :: extent ! Length of Gate_Param section - variable for GATEPI
 double precision :: Gate_Param(:)
 double precision :: Sig_Offset ! -1 for GatePI, 0 for GATEY
@@ -821,12 +883,12 @@ do i = 1, extent
 end do
 return
 
-end subroutine csd_generator_GroupGates
+end subroutine csd_generator_cplx_GroupGates
 
-subroutine csd_generator_ReduceGroups(this)
+subroutine csd_generator_cplx_ReduceGroups(this)
 
 implicit none
-class(csd_generator) :: this
+class(csd_generator_cplx) :: this
 
 integer :: N
 integer :: i, j, k, row, p, limit
@@ -855,6 +917,6 @@ do i = 1, this%N_Type
 end do
 return
 
-end subroutine csd_generator_ReduceGroups
+end subroutine csd_generator_cplx_ReduceGroups
 
-end module csd_real
+end module csd_cplx

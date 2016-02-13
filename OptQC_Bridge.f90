@@ -56,7 +56,7 @@ end if
 if(args_obj%PROG_TYPE == 0) then
     call OptQC_REAL(root,my_rank,p,args_obj)
 else
-    !call OptQC_CPLX(root,my_rank,p,args_obj)
+    call OptQC_CPLX(root,my_rank,p,args_obj)
 end if
 
 ! Finalize MPI environment
