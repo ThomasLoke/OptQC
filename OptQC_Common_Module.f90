@@ -2,6 +2,21 @@ module common_module
 
 implicit none
 
+type cstr
+    character, allocatable :: str(:)
+    integer :: len
+contains
+    procedure :: constructor => cstr_constructor
+    procedure :: destructor => cstr_destructor
+    procedure :: copy => cstr_copy
+end type cstr
+
+type, extends (cstr) :: binstr
+contains
+	procedure :: getbinrep => binstr_getbinrep
+    procedure :: qsimilar => binstr_qsimilar
+end type binstr
+
 type prog_args
     character(len=128) :: fbase
     integer :: flength
@@ -45,6 +60,101 @@ contains
 end type l_arr_int_1
 
 contains
+
+subroutine cstr_constructor(this,n)
+
+implicit none
+class(cstr) :: this
+integer :: n
+
+allocate(this%str(n))
+this%len = n
+
+end subroutine cstr_constructor
+
+subroutine cstr_destructor(this)
+
+implicit none
+class(cstr) :: this
+
+deallocate(this%str)
+this%len = 0
+
+end subroutine cstr_destructor
+
+subroutine cstr_copy(this,targ)
+
+implicit none
+class(cstr) :: this, targ
+integer :: i, mlen
+
+mlen = min(this%len,targ%len)
+this%str(1:mlen) = targ%str(1:mlen)
+if(mlen < this%len) then
+    this%str(mlen+1:this%len) = ''
+end if
+
+end subroutine cstr_copy
+
+subroutine binstr_getbinrep(this,num)
+
+implicit none
+class(binstr) :: this
+integer :: num
+integer :: i
+
+this%str = '0'
+do i = 1, this%len
+	if(btest(num,i-1) == .true.) then
+		this%str(this%len-i+1) = '1'
+	end if
+end do
+
+end subroutine binstr_getbinrep
+
+function binstr_qsimilar(this,targ,e_pos)
+
+implicit none
+class(binstr) :: this, targ
+integer :: e_pos
+integer :: binstr_qsimilar
+
+integer :: i, p
+
+! Automatically reject if bit stirngs are not of the same length
+if(this%len /= targ%len) then
+    binstr_qsimilar = 0
+    return
+end if
+binstr_qsimilar = 1
+! Must differ at the specified e_pos bit
+p = e_pos
+if(this%str(p) == targ%str(p)) then
+    binstr_qsimilar = 0
+    return
+end if
+! Must not differ at elsewhere
+if(e_pos > 1) then
+    do i = 1, e_pos-1
+        p = i
+        if(this%str(p) == targ%str(p)) then
+            binstr_qsimilar = 0
+            return
+        end if
+    end do
+end if
+if(e_pos < this%len-1) then
+    do i = e_pos+1, this%len-1
+        p = i
+        if(this%str(p) == targ%str(p)) then
+            binstr_qsimilar = 0
+            return
+        end if
+    end do
+end if
+return
+
+end function binstr_qsimilar
 
 subroutine arr_dp_1_constructor(this,d1)
 

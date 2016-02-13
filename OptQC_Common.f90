@@ -335,25 +335,6 @@ return
 
 end function FindUnused
 
-! Returns the Gray code distance between x and y up to N bits
-function GrayCodeDistance(N,x,y)
-
-implicit none
-integer :: N, x, y
-
-integer :: i, xor, GrayCodeDistance
-
-GrayCodeDistance = 0
-xor = IEOR(x,y)
-do i = 1, N
-    GrayCodeDistance = GrayCodeDistance + mod(xor,2)
-    xor = rshift(xor,1)
-end do
-
-return
-
-end function GrayCodeDistance
-
 ! Generates a random number RINT such that 1 <= RINT <= maxv
 function RINT(maxv)
 

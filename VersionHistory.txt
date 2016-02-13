@@ -1,3 +1,18 @@
+Version History for OptQC (Redone_v1+)
+
+v1.0:
+- Copied over files from Release version (v0.62F).
+- Frustrated with stupidity of Fortran character arrays. Decided to replace the len=20 (i.e. 20 qubit limitation) by means of a new object.
+- Created cstr and binstr (extension of cstr) for said purpose in OptQC_Common_Module.f90.
+- Removed GrayCodeDistance function from OptQC_Common.f90 - obsolete.
+- Ported over QSimilar function to be a member function of binstr - have not deleted the original yet though. Waiting till next version to impose integration with everything else.
+- Decided to store current progress as v1.0 - integration of binstr incoming.
+
+v1.01:
+
+------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
+------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
+
 Version History for OptQC
 
 v0.1:

@@ -207,8 +207,7 @@ end subroutine csd_solution_clean
 subroutine csd_solution_copy(this,source)
 
 implicit none
-class(csd_solution) :: this
-type(csd_solution) :: source
+class(csd_solution) :: this, source
 
 if(this%obj_type /= source%obj_type) then
     write(*,'(a)')"Attempted to copy between csd_solution objects of different type. Terminating program."
@@ -231,7 +230,7 @@ subroutine csd_solution_run_csd(this,generator)
 
 implicit none
 class(csd_solution) :: this
-type(csd_generator) :: generator
+class(csd_generator) :: generator
 
 if(this%toggle_csd == .true.) then
     call this%clean()
@@ -246,7 +245,7 @@ subroutine csd_solution_run_csdr(this,generator)
 
 implicit none
 class(csd_solution) :: this
-type(csd_generator) :: generator
+class(csd_generator) :: generator
 
 if(this%toggle_csd == .true.) then
     call this%clean()
@@ -262,7 +261,7 @@ subroutine csd_solution_write_circuit(this,wh)
 
 implicit none
 class(csd_solution) :: this
-type(csd_write_handle) :: wh
+class(csd_write_handle) :: wh
 
 if(this%csdr_ct == 0) then
     write(*,'(a)')"Attempted to output empty circuit to .tex file - request ignored."
@@ -328,9 +327,7 @@ end subroutine csd_solution_set_clean
 subroutine csd_solution_set_copy(this,source)
 
 implicit none
-class(csd_solution_set) :: this
-type(csd_solution_set) :: source
-
+class(csd_solution_set) :: this, source
 integer :: i
 
 do i = 1, this%nset
@@ -346,7 +343,7 @@ subroutine csd_solution_set_run_csd(this,generator)
 
 implicit none
 class(csd_solution_set) :: this
-type(csd_generator) :: generator
+class(csd_generator) :: generator
 
 integer :: i
 
@@ -363,7 +360,7 @@ subroutine csd_solution_set_run_csdr(this,generator)
 
 implicit none
 class(csd_solution_set) :: this
-type(csd_generator) :: generator
+class(csd_generator) :: generator
 
 integer :: i
 
@@ -381,7 +378,7 @@ subroutine csd_solution_set_write_circuit(this,wh)
 
 implicit none
 class(csd_solution_set) :: this
-type(csd_write_handle) :: wh
+class(csd_write_handle) :: wh
 
 integer :: i, sepidx, sepct
 
@@ -577,7 +574,7 @@ subroutine csd_generator_assign_target(this,csd_ss)
 
 implicit none
 class(csd_generator) :: this
-type(csd_solution), target :: csd_ss
+class(csd_solution), target :: csd_ss
 
 ! Bind pointers to the csd_solution elements
 this%targ_type = csd_ss%obj_type
@@ -1452,7 +1449,7 @@ subroutine csd_write_handle_assign_target(this,targ)
 
 implicit none
 class(csd_write_handle) :: this
-type(csd_solution), target :: targ
+class(csd_solution), target :: targ
 
 this%Circuit => targ%Circuit
 this%nct = targ%csdr_ct

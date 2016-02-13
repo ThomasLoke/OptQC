@@ -52,7 +52,8 @@ README for OptQC:
    optimal decomposition using any TeX installation.
 -> "*_history.dat": This file provides the time-series of the simulated annealing process for the process
    that reaches the optimal decomposition.
--> "*_perm.dat": WARGHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHH
+-> "*_perm.dat": This file gives the chosen qubit permutation q in list form, and the chosen permutation p in
+   list form.
 
 - On the Fornax supercomputer (access provided by iVEC@UWA), the PBS script (job.pbs) used to call mpirun 
   is as follows:
@@ -60,14 +61,14 @@ README for OptQC:
 #!/bin/tcsh
 #PBS -l nodes=8:ppn=12,mem=64gb
 #PBS -l walltime=01:00:00
-#PBS -W group_list=partner772
+#PBS -W group_list=xxx
 #PBS -q workq
 #PBS -j oe
 
 cd $PBS_O_WORKDIR
-mpirun ./OptQC RandReal 0 40000 500 0.010
+mpirun ./OptQC RandReal 0 40000 1000 0.010
 
-  This PBS script executes the program, reading a complex unitary matrix from the file RandReal.txt, using 40000 iterations
-  for simulated annealing and 500 iterations to find a different qubit permutation. The output files "RandReal_plot.txt", 
-  "RandReal_plot.tex", "RandReal_history.dat" and "RandReal_perm.dat" are produced. See the file "job.pbs.o1688036" for the 
-  console output produced by the program.
+  This PBS script executes the program on 8 nodes (96 threads), reading a complex unitary matrix from the file RandReal.txt, 
+  using 40000 iterations for simulated annealing and 1000 iterations to find a different qubit permutation. The output files 
+  "RandReal_plot.txt", "RandReal_plot.tex", "RandReal_history.dat" and "RandReal_perm.dat" are produced. See the file 
+  "job.pbs.o1688661" for the console output produced by the program.
