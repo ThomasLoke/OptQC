@@ -207,16 +207,18 @@ return
 
 end function FindMinPos
 
-subroutine init_random_seed()
+subroutine init_random_seed(my_rank)
 
 implicit none
+integer(4) :: my_rank
+
 integer :: i, n, clock
 integer, allocatable :: seed(:)
 
 call random_seed(size = n)
 allocate(seed(n))
 call system_clock(COUNT=clock)
-seed = clock + 37 * (/ (i - 1, i = 1, n) /)
+seed = (clock*(my_rank+1)) + 37 * (/ (i - 1, i = 1, n) /)
 call random_seed(PUT = seed)
 deallocate(seed)
 

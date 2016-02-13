@@ -11,9 +11,10 @@ double precision, parameter :: PI = 3.141592653589793238462643383279502884197169
 type csd_solution
     integer :: N, M
     double precision, allocatable :: X(:,:)
-    character(len=15), allocatable :: Circuit(:,:)          ! Note: By design, this is empty unless run_csdr is called
+    character(len=32), allocatable :: Circuit(:,:)          ! Note: By design, this is empty unless run_csdr is called
     integer :: csd_ct, csdr_ct
     logical :: neg                                          ! .true. if circuit represents -X, .false. otherwise
+    logical :: toggle_csd                                   ! Runs csd/csdr procedure if .true., otherwise disallow any changes to variables (except via external subroutines)
 contains
     procedure :: constructor => csd_solution_constructor
     procedure :: destructor => csd_solution_destructor
@@ -48,7 +49,7 @@ type csd_generator
     double precision, allocatable :: GATEY(:,:), GATEPI(:,:)! Intermediate variables carrying CSD results - moved from csd_solution object
     ! Note: Could just store a pointer to the csd_solution object instead - but done this way for less indirection (i.e. more clarity)
     double precision, pointer :: X(:,:)                     ! Intent: In
-    character(len=15), pointer :: Circuit(:,:)              ! Intent: Out
+    character(len=32), pointer :: Circuit(:,:)              ! Intent: Out
     integer, pointer :: csd_ct, csdr_ct                     ! Intent: Out
     logical, pointer :: neg                                 ! Intent: Out
     ! Workspace arrays
@@ -90,7 +91,7 @@ type csd_write_handle
     character(len=128) :: fname
     integer :: FN
     ! Pointer to circuit
-    character(len=15), pointer :: Circuit(:,:)
+    character(len=32), pointer :: Circuit(:,:)
     integer :: nct                                          ! Length of circuit
     ! Output variables
     character(len=256), allocatable :: buffer(:)
@@ -133,6 +134,7 @@ allocate(this%Circuit(N+1,M*M/2+M))
 this%X = 0.0d0
 this%Circuit = ""
 this%neg = .false.
+this%toggle_csd = .true.
 
 end subroutine csd_solution_constructor
 
@@ -169,6 +171,7 @@ this%Circuit = source%Circuit
 this%csd_ct = source%csd_ct
 this%csdr_ct = source%csdr_ct
 this%neg = source%neg
+this%toggle_csd = source%toggle_csd
 
 end subroutine csd_solution_copy
 
@@ -178,10 +181,12 @@ implicit none
 class(csd_solution) :: this
 type(csd_generator) :: generator
 
-call this%clean()
-call generator%assign_target(this)
-call generator%run_csd()                         ! Note: No circuit result
-call generator%nullify_target()
+if(this%toggle_csd == .true.) then
+    call this%clean()
+    call generator%assign_target(this)
+    call generator%run_csd()                         ! Note: No circuit result
+    call generator%nullify_target()
+end if
 
 end subroutine csd_solution_run_csd
 
@@ -191,11 +196,13 @@ implicit none
 class(csd_solution) :: this
 type(csd_generator) :: generator
 
-call this%clean()
-call generator%assign_target(this)
-call generator%run_csd()
-call generator%ReduceSolution()                  ! Note: Circuit result produced here
-call generator%nullify_target()
+if(this%toggle_csd == .true.) then
+    call this%clean()
+    call generator%assign_target(this)
+    call generator%run_csd()
+    call generator%ReduceSolution()                  ! Note: Circuit result produced here
+    call generator%nullify_target()
+end if
 
 end subroutine csd_solution_run_csdr
 
@@ -330,12 +337,14 @@ call wh%preamble()
 if(this%neg == .true.) call wh%insert_neg()
 ! Note: Order reversal in circuit, since U = U_1 U_2 .. U_N means that U_N is applied first
 do i = this%nset, 1, -1
-    call wh%assign_target(this%arr(i))
-    call wh%write_circuit()
-    if(i /= 1) then
-        call wh%insert_seperator()
+    if(this%arr(i)%csdr_ct > 0) then
+        call wh%assign_target(this%arr(i))
+        call wh%write_circuit()
+        if(i /= 1) then
+            call wh%insert_seperator()
+        end if
+        call wh%nullify_target()
     end if
-    call wh%nullify_target()
 end do
 call wh%postamble()
 

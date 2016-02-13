@@ -41,3 +41,19 @@ v0.3:
 - Fixed unusage of sgn parameter by introducing the neg logical element in the csd_solution, csd_solution_set, csd_generator and csd_write_handle objects.
 - TODO: Paradoxial relationship between visual prettiness and accuracy - currently about 10^-5 error for 4 decimal places. Leaving it for now.
 - Decided to store current progress as v0.3 - need to add the qubit permutation nonsense in the next version.
+
+v0.4:
+- UGH time to add qubit permutation stuff.
+- Added subroutines qperm_compute(), qperm_generate() and qperm_reverse() for qubit permutations in OptQC_Perm.f90.
+- Modified OptQC_Main.f90 to use the qubit permutation stuffs.
+- Checked that qperm_generate() is working correctly - fixed the root process to have the identity qubit permutation.
+- Modified init_random_seed() to be process dependent.
+- TODO: Possibly relook at usage of system_clock() in init_random_seed() in an MPI environment? Also maybe change usage of random_number() in RINT() to an MPI function instead?
+- Debugged qperm_compute() using ALL THE MAGIC.
+- Updated OptQC_Main.f90 with usage of qperm stuffs.
+- Done and done - verified results with the SWAP gates added in! IT WORKS! HUZZAH!
+- Decided to store current progress as v0.4 - planning to add mechanism to keep changing initial permutation until number of gates is lower, and also to muck around with simulated annealing parameters for optimal results.
+
+v0.5:
+- LET'S DO IT!
+- 

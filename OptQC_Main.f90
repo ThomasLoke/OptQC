@@ -18,6 +18,7 @@ integer :: FindMinPos, CalcTol
 ! Workspace arrays
 integer, allocatable :: index_level(:), index_pair(:,:,:)
 integer, allocatable :: Perm(:), Perm_new(:), Perm_sol(:)
+integer, allocatable :: QPerm(:)
 
 ! MPI variables
 integer(4) :: my_rank, p, ierr, root, dummy
@@ -35,7 +36,7 @@ type(csd_write_handle) :: csdwh_obj
 ! Choose root process as 0
 root = 0
 ! Initialize a random seed for the RNG
-call init_random_seed()
+call init_random_seed(my_rank)
 
 if(my_rank == root) then
     write(*,*)
@@ -92,27 +93,43 @@ call CYG_INDEXTABLE(N,M,index_level,index_pair)
 allocate(Perm(M))
 allocate(Perm_new(M))
 allocate(Perm_sol(M))
+allocate(QPerm(N))
 ! Start with the identity permutation
 do i = 1, M
     Perm(i) = i
     Perm_new(i) = i
     Perm_sol(i) = i
 end do
+! Initialize root process to identity qubit permutation - all others are randomized
+if(my_rank == root) then
+    do i = 1, N
+        QPerm(i) = i
+    end do
+else
+    call qperm_generate(N,QPerm)
+end if
 ! Run object constructors
 call csdgen_obj%constructor(N,M,index_level,index_pair)
-call csdss_Xinit%constructor(3,N,M)
-call csdss_Xcur%constructor(3,N,M)
-call csdss_Xnew%constructor(3,N,M)
-call csdss_Xsol%constructor(3,N,M)
+call csdss_Xinit%constructor(5,N,M)
+csdss_Xinit%arr(1)%toggle_csd = .false.
+csdss_Xinit%arr(5)%toggle_csd = .false.
+call csdss_Xcur%constructor(5,N,M)
+call csdss_Xnew%constructor(5,N,M)
+call csdss_Xsol%constructor(5,N,M)
 call csdwh_obj%constructor(N)
-! Convention: U = P^T U' P - CHECKED AND VERIFIED
-call permlisttomatrixtr(M,Perm,csdss_Xinit%arr(1)%X)
-csdss_Xinit%arr(2)%X = X
-call permlisttomatrix(M,Perm,csdss_Xinit%arr(3)%X)
+! Construct random state permutation matrix from qubit permutation
+call qperm_compute(N,M,csdss_Xinit%arr(5),QPerm,my_rank)                        ! Q
+call qperm_reverse(N,M,csdss_Xinit%arr(5),csdss_Xinit%arr(1))                   ! Q^T
+! Convention: U = Q^T P^T U' P Q - CHECKED AND VERIFIED
+call permlisttomatrixtr(M,Perm,csdss_Xinit%arr(2)%X)                            ! P^T
+call permlisttomatrix(M,Perm,csdss_Xinit%arr(4)%X)                              ! P
+! Note: Q U Q^T = P^T U' P, so we treat Q U Q^T as the matrix to be decomposed
+csdss_Xinit%arr(3)%X = matmul(csdss_Xinit%arr(5)%X,X)                           ! Q U
+csdss_Xinit%arr(3)%X = matmul(csdss_Xinit%arr(3)%X,csdss_Xinit%arr(1)%X)        ! Q U Q^T
 ! Count initial number of gates (including reduction)
-call csdss_Xinit%arr(2)%run_csdr(csdgen_obj)
-csdss_Xinit%csd_ss_ct = csdss_Xinit%arr(2)%csd_ct
-csdss_Xinit%csdr_ss_ct = csdss_Xinit%arr(2)%csdr_ct
+call csdss_Xinit%arr(3)%run_csdr(csdgen_obj)
+csdss_Xinit%csd_ss_ct = csdss_Xinit%arr(3)%csd_ct + csdss_Xinit%arr(1)%csd_ct + csdss_Xinit%arr(5)%csd_ct
+csdss_Xinit%csdr_ss_ct = csdss_Xinit%arr(3)%csdr_ct + csdss_Xinit%arr(1)%csdr_ct + csdss_Xinit%arr(5)%csdr_ct
 ecur = csdss_Xinit%csdr_ss_ct
 
 ! Initialize solution to initial setup
@@ -208,6 +225,11 @@ if(my_rank == m_pos-1) then
     call csdss_Xsol%write_circuit(csdwh_obj)
     ! DEBUG CODE - OUTPUT GATES TO FILE FOR MATHEMATICA - ORDER REVERSAL FOR CORRECT CIRCUIT ORDER
     open(unit=13,file="gateseq.txt",action='write')
+    do i = 1, csdss_Xsol%arr(4)%csdr_ct
+        do j = 1, N+1
+            write(13,'(a)')csdss_Xsol%arr(4)%Circuit(j,i)
+        end do
+    end do
     do i = 1, csdss_Xsol%arr(3)%csdr_ct
         do j = 1, N+1
             write(13,'(a)')csdss_Xsol%arr(3)%Circuit(j,i)
@@ -216,11 +238,6 @@ if(my_rank == m_pos-1) then
     do i = 1, csdss_Xsol%arr(2)%csdr_ct
         do j = 1, N+1
             write(13,'(a)')csdss_Xsol%arr(2)%Circuit(j,i)
-        end do
-    end do
-    do i = 1, csdss_Xsol%arr(1)%csdr_ct
-        do j = 1, N+1
-            write(13,'(a)')csdss_Xsol%arr(1)%Circuit(j,i)
         end do
     end do
     close(13)
@@ -236,7 +253,7 @@ else
     write(*,'(a,i4)')"Size of communicator: ",p
 end if
 write(*,'(a,i4,a,i8,a,i8)')"Process ",my_rank,": Initial number of gates before/after reduction = ",csdss_Xinit%csd_ss_ct,"/",csdss_Xinit%csdr_ss_ct
-write(*,'(a,i4,a,i8,a,i8,a,i8,a,i8,a,i8)')"Process ",my_rank,": Breakdown of solution = ",csdss_Xsol%arr(1)%csdr_ct,"/",csdss_Xsol%arr(2)%csdr_ct,"/",csdss_Xsol%arr(3)%csdr_ct,"/",csdss_Xsol%csdr_ss_ct," at step number ",idx_sol
+write(*,'(a,i4,a,i8,a,i8,a,i8,a,i8,a,i8,a,i8,a,i8)')"Process ",my_rank,": Breakdown of solution = ",csdss_Xsol%arr(1)%csdr_ct,"/",csdss_Xsol%arr(2)%csdr_ct,"/",csdss_Xsol%arr(3)%csdr_ct,"/",csdss_Xsol%arr(4)%csdr_ct,"/",csdss_Xsol%arr(5)%csdr_ct,"/",csdss_Xsol%csdr_ss_ct," at step number ",idx_sol
 write(*,'(a,i4,a,f15.9,a)')"Process ",my_rank,": Time taken = ",e_time," seconds."
 call flush(6)
 if(my_rank /= p-1) then
@@ -253,6 +270,7 @@ deallocate(index_pair)
 deallocate(Perm)
 deallocate(Perm_new)
 deallocate(Perm_sol)
+deallocate(QPerm)
 
 ! Run object destructors
 call csdgen_obj%destructor()
