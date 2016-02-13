@@ -2,6 +2,16 @@ module common_module
 
 implicit none
 
+type prog_args
+    character(len=128) :: fbase
+    integer :: flength
+    integer :: PROG_TYPE
+    integer :: ITER_LIM
+    integer :: PERM_ITER_LIM
+    double precision :: TOL_COEFF
+contains
+end type prog_args
+
 type arr_dp_1
     double precision, allocatable :: arr(:)
     integer :: d1 = 0

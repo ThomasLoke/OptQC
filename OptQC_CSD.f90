@@ -710,14 +710,13 @@ return
 
 end subroutine csd_generator_GateCount
 
-
 subroutine csd_generator_ReduceSolution(this)
 
 implicit none
 class(csd_generator) :: this
 integer :: N, ct
 integer :: i, j, k, p, ref, row, lb, rb
-character(len=20) :: control, workstr
+character(len=20) :: workstr
 integer :: IsEmpty
 
 ! Includes update of the count of the reduced number of gates at the end
@@ -862,7 +861,6 @@ implicit none
 class(csd_generator) :: this
 
 integer :: N
-character(len=20) :: workstr
 integer :: i, j, k, row, p, limit
 integer :: QSimilar, BitPos
 
@@ -1031,8 +1029,6 @@ subroutine csd_write_handle_insert_seperator(this)
 
 implicit none
 class(csd_write_handle) :: this
-
-integer :: row
 
 ! Let's try classifying seperators as not counting towards the buffer_col count.
 ! It shouldn't take up that much (figure) space right....?

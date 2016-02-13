@@ -35,7 +35,7 @@ integer :: M
 double precision :: X(M,M), Z(M,M)
 integer :: s1, s2
 
-integer :: i, j
+integer :: i
 
 Z = X
 do i = 1, M
@@ -124,7 +124,7 @@ end do
 
 end subroutine permlisttomatrixtr
 
-subroutine qperm_compute(N,M,csd_obj,qperm,my_rank)
+subroutine qperm_compute(N,M,csd_obj,qperm)
 
 use csd_real
 
@@ -132,7 +132,6 @@ implicit none
 integer :: N, M
 type(csd_solution) :: csd_obj
 integer :: qperm(N)
-integer(4) :: my_rank
 
 integer, allocatable :: qperm_temp(:), perm(:)
 logical, allocatable :: bitval(:)
@@ -229,23 +228,52 @@ end do
 ! Choose each element randomly and fix the chosen ones from the left of the array
 do i = 1, N-1
     idx = i-1+RINT(N-i+1)
-    temp = qperm(i)
-    qperm(i) = qperm(idx)
-    qperm(idx) = temp
+    if(i /= idx) then
+        temp = qperm(i)
+        qperm(i) = qperm(idx)
+        qperm(idx) = temp
+    end if
 end do
 
 end subroutine qperm_generate
 
-subroutine qperm_reverse(N,M,csd_obj_source,csd_obj_targ)
+subroutine qperm_process(N,M,csdss_obj,csdgen_obj,QPerm,X,ecur)
 
 use csd_real
 
 implicit none
 integer :: N, M
+type(csd_solution_set) :: csdss_obj
+type(csd_generator) :: csdgen_obj
+integer :: QPerm(N)
+double precision :: X(M,M)
+integer :: ecur
+
+! Construct state permutation matrix from qubit permutation
+call qperm_compute(N,M,csdss_obj%arr(5),QPerm)                              ! Q
+call qperm_reverse(N,csdss_obj%arr(5),csdss_obj%arr(1))                     ! Q^T
+! Note: Q U Q^T = P^T U' P, so we treat Q U Q^T as the matrix to be decomposed
+csdss_obj%arr(3)%X = matmul(csdss_obj%arr(5)%X,X)                           ! Q U
+csdss_obj%arr(3)%X = matmul(csdss_obj%arr(3)%X,csdss_obj%arr(1)%X)          ! Q U Q^T
+! Count initial number of gates (including reduction)
+call csdss_obj%arr(3)%run_csdr(csdgen_obj)
+csdss_obj%csd_ss_ct = csdss_obj%arr(3)%csd_ct + csdss_obj%arr(1)%csd_ct + csdss_obj%arr(5)%csd_ct
+csdss_obj%csdr_ss_ct = csdss_obj%arr(3)%csdr_ct + csdss_obj%arr(1)%csdr_ct + csdss_obj%arr(5)%csdr_ct
+ecur = csdss_obj%csdr_ss_ct
+
+end subroutine qperm_process
+
+subroutine qperm_reverse(N,csd_obj_source,csd_obj_targ)
+
+use csd_real
+
+implicit none
+integer :: N
 type(csd_solution) :: csd_obj_source, csd_obj_targ
 
 integer :: i, j, idx, ct
 
+call csd_obj_targ%clean()
 ct = csd_obj_source%csd_ct
 csd_obj_targ%X = transpose(csd_obj_source%X)
 do i = 1, ct

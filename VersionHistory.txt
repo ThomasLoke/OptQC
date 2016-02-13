@@ -56,4 +56,15 @@ v0.4:
 
 v0.5:
 - LET'S DO IT!
-- 
+- Edited OptQC_Main.f90 to cycle non-root processes until the initial number of reduced gates is at least as low as that of the root process (i.e. the identity qubit permutation).
+- Checked init_random_seed() and RINT() - conclusion being it should yield different results for different processes.
+- Checked that rerolling permutations isn't the cause of the exceptionally long program runtime - perhaps the file writing?
+- Adding object prog_args to encapsulate all arguments to the program - makes passing it less convoluted.
+- Added two extra parameters: PERM_ITER_LIM abd TOL_COEFF.
+- Edited makefile correspondingly.
+- Added flags -warn all -nogen-interfaces for debugging purposes, and -xHost -ipo for optimization.
+- Spent 3 days debugging a weird error - only to realize that qperm_process() was being called with one less argument than it should have. WHAI COMPILER SO DUMB (EVEN WITH WARNING MESSAGES ENABLED) >_>
+- Everything looks fixed now - phew. Still testing results for different parameters.
+- TODO: Test using non-reduced number of gates as objective function instead?
+- TODO: Remove output of gateseq.txt plz.
+- Decided to store current progress as v0.5 - planning to WRITE ALL THE CPLX CODE in the next version.
