@@ -31,7 +31,7 @@ double precision :: c_start, c_mid, c_end, c_time1, c_time2
 ! Comparison variables for initial permutation
 integer :: einit_root
 
-! Objects and specification variables
+! Objects
 integer :: nset
 integer, allocatable :: type_spec(:)
 type(prog_args) :: args_obj
@@ -90,8 +90,6 @@ c_start = MPI_Wtime()
 ! Allocate record arrays
 allocate(history(args_obj%ITER_LIM+1))
 allocate(r_col_array(p))
-history = 0
-r_col_array = 0
 ! Allocate input and output arrays
 allocate(index_level(M-1))
 allocate(index_pair(M/2,2,N))
@@ -215,7 +213,7 @@ if(ecur < esol) then
     Perm_sol = Perm
     idx_sol = args_obj%ITER_LIM
 end if
-! End timing here
+! End timing here!
 c_end = MPI_Wtime()
 c_time1 = c_mid - c_start
 c_time2 = c_end - c_mid
@@ -256,24 +254,6 @@ if(my_rank == m_pos-1) then
     close(2)
     ! Write the .tex files
     call csdss_Xsol%write_circuit(csdwh_obj)
-    ! DEBUG CODE - OUTPUT GATES TO FILE FOR MATHEMATICA - ORDER REVERSAL FOR CORRECT CIRCUIT ORDER
-    open(unit=13,file="gateseq.txt",action='write')
-    do i = 1, csdss_Xsol%arr(4)%csdr_ct
-        do j = 1, N+1
-            write(13,'(a)')csdss_Xsol%arr(4)%Circuit(j,i)
-        end do
-    end do
-    do i = 1, csdss_Xsol%arr(3)%csdr_ct
-        do j = 1, N+1
-            write(13,'(a)')csdss_Xsol%arr(3)%Circuit(j,i)
-        end do
-    end do
-    do i = 1, csdss_Xsol%arr(2)%csdr_ct
-        do j = 1, N+1
-            write(13,'(a)')csdss_Xsol%arr(2)%Circuit(j,i)
-        end do
-    end do
-    close(13)
 end if
 
 call flush(6)

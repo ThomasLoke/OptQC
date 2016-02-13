@@ -30,7 +30,7 @@ double precision :: c_start, c_mid, c_end, c_time1, c_time2
 ! Comparison variables for initial permutation
 integer :: einit_root
 
-! Objects and specification variables
+! Objects
 integer :: nset
 integer, allocatable :: type_spec(:)
 type(prog_args) :: args_obj
@@ -142,7 +142,7 @@ if(my_rank /= root) then
     j = 0
     ! Keep testing new qubit permutations until a lower number of gates is found, or until the limit PERM_ITER_LIM has been reached,
     ! in which case the identity permutation is used instead.
-    do while(einit_root <= ecur)
+    do while(einit_root < ecur)
         if(j == args_obj%PERM_ITER_LIM) then
             do i = 1, N
                 QPerm(i) = i
@@ -249,24 +249,6 @@ if(my_rank == m_pos-1) then
     close(2)
     ! Write the .tex files
     call csdss_Xsol%write_circuit(csdwh_obj)
-    ! DEBUG CODE - OUTPUT GATES TO FILE FOR MATHEMATICA - ORDER REVERSAL FOR CORRECT CIRCUIT ORDER
-    open(unit=13,file="gateseq.txt",action='write')
-    do i = 1, csdss_Xsol%arr(4)%csdr_ct
-        do j = 1, N+1
-            write(13,'(a)')csdss_Xsol%arr(4)%Circuit(j,i)
-        end do
-    end do
-    do i = 1, csdss_Xsol%arr(3)%csdr_ct
-        do j = 1, N+1
-            write(13,'(a)')csdss_Xsol%arr(3)%Circuit(j,i)
-        end do
-    end do
-    do i = 1, csdss_Xsol%arr(2)%csdr_ct
-        do j = 1, N+1
-            write(13,'(a)')csdss_Xsol%arr(2)%Circuit(j,i)
-        end do
-    end do
-    close(13)
 end if
 
 call flush(6)

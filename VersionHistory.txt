@@ -109,3 +109,12 @@ v0.6:
 - Or not....getting segfaults for both REAL and CPLX implementation. WHAIIIIIII.
 - Segfaulting for > 1 process? Output issues? Symptomatic? Possible issue with qubit permutation sec?
 - Decided to store current progress as v0.6 - contemplating rerolling to earlier version.
+
+v0.6R (Rerolled):
+- Rolled back to v0.51 - last working version for the REAL implementation. 
+- Slowly re-copied all changes from v0.52 and v0.6 back.
+- And with (as far as I can tell) exactly the same code as v0.6, it somehow works, but v0.6 still dies with segfaults.
+- Verified result correctness using Mathematica - ALL GOOD WOOTS.
+- Removed debug code outputting gateseq.txt file.
+- Removed extra output precision - was meant to help with debugging previously. 
+- Decided to store current progress as v0.6R - still need to sort out problem with undefined get_command_argument() behaviour. Or should I bother?

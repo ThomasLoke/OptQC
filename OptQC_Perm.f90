@@ -181,6 +181,7 @@ do i = 1, M
 end do
 ! Construct matrix from the state permutation
 ! Note: Transpose of permutation - MAGIC DON'T TOUCH PLOX
+! Assumed to be of real type
 call permlisttomatrixtr(M,perm,csd_obj%X)
 ! Determine swap gate ordering
 ct = 0

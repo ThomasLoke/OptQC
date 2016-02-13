@@ -408,8 +408,8 @@ subroutine csd_generator_constructor(this,N,M,obj_type,index_level,index_pair,CO
 implicit none
 class(csd_generator) :: this
 integer :: N, M, obj_type
-integer, target :: index_level(:), index_pair(:,:,:)
-double precision, target :: COEFF(:,:)
+integer, target :: index_level(M-1), index_pair(M/2,2,N)
+double precision, target :: COEFF(M,M)
 integer :: i, Mh, size0, size1, num0, num1
 
 Mh = M / 2
@@ -1299,8 +1299,10 @@ else
         end do
     end do
 end if
-!302 format('& ',F7.4)
-302 format('& ',F12.9)
+! Just enough precision to look nice in the circuit plot
+302 format('& ',F7.4)
+! Excessive precision for result checking - looks awful in circuit pllot
+!302 format('& ',F12.9)
 this%csdr_ct = ct
 
 end subroutine csd_generator_ReduceSolution
