@@ -355,31 +355,6 @@ deallocate(perm)
 
 end subroutine qperm_compute
 
-! Generates a random qubit permutation
-subroutine qperm_generate(N,qperm)
-
-implicit none
-integer :: N
-integer :: qperm(N)
-
-integer :: i, idx, temp
-
-! Start with the identity qubit permutation
-do i = 1, N
-    qperm(i) = i
-end do
-! Choose each element randomly and fix the chosen ones from the left of the array
-do i = 1, N-1
-    idx = i-1+rng_inst%rint(N-i+1)
-    if(i /= idx) then
-        temp = qperm(i)
-        qperm(i) = qperm(idx)
-        qperm(idx) = temp
-    end if
-end do
-
-end subroutine qperm_generate
-
 subroutine qperm_process(N,M,csdss_obj,csdgen_obj,QPerm,X,ecur)
 
 implicit none

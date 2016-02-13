@@ -1,3 +1,16 @@
+Version History for OptQC (GA)
+
+v0.1:
+- Copied over files from Final version (v1.2F).
+- Starting by reducing the REAL implementation to a pseudo-serial version.
+- Moved and renamed qperm_generate to perm_generate in OptQC_Common.f90 - it is more general purpose than just generating strictly qubit permutations - changed Makefile correspondingly.
+- TODO: Consideration of fitness - should it be calculated according to a dynamic or static reference value? Dynamically would probably almost certainly guarantee throwing away the lowest fitness chromosome - desirable? Akin to steady state selection.
+- TODO: How to generate a random pool of solutions? Perfect randomness doesn't seem to work - why should stuff work anyway.
+- Bleh give up? Crossover of two permutations does not in general give a fitter permutation - nor should there be any reason why it should.
+
+------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
+------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
+
 Version History for OptQC (Redone_v1+)
 
 v1.0:

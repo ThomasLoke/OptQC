@@ -1,6 +1,7 @@
 subroutine OptQC_REAL(root,my_rank,p,args_obj)
 
 use common_module
+use csd_ga
 use csd_mpi
 use csd_perm
 use csd_tools
@@ -10,10 +11,10 @@ use rng
 
 implicit none
 character(len=128) :: finput, fhist, fperm, ftex
-integer :: N, M, d, i, j, k, l, Msq, num
+integer :: N, M, d, i, j, Msq, num
 integer :: ecur, enew, esol, idx_sol
 integer, allocatable :: history(:)
-integer :: hist_idx, m_pos, delta, tol, t0, e0
+integer :: hist_idx, m_pos
 ! Input arrays
 double precision, allocatable :: X(:,:)
 ! Functions
@@ -21,7 +22,7 @@ integer :: FindMinPos, CalcTol, ChooseN
 ! Workspace arrays
 integer, allocatable :: index_level(:), index_pair(:,:,:)
 double precision, allocatable :: COEFF(:,:)
-integer, allocatable :: Perm(:), Perm_new(:), Perm_sol(:)
+integer, allocatable :: Perm(:), Perm_sol(:)
 integer, allocatable :: QPerm(:), QPerm_new(:)
 
 ! MPI variables
@@ -32,7 +33,7 @@ integer, allocatable :: r_col_array(:)
 integer :: mpi_stat(MPI_STATUS_SIZE)
 integer :: mpi_group_world, mpi_group_local, mpi_comm_local
 ! Timer variables
-double precision :: c_start, c_mid, c_end, c_time1, c_time2, c_t1, c_t2, c_tot
+double precision :: c_start, c_mid, c_end, c_time1, c_time2
 ! Synchronization variables
 integer :: SYNCH_ct, POPTNUM
 integer :: p_group
@@ -45,9 +46,10 @@ integer :: nset
 integer, allocatable :: type_spec(:)
 type(prog_args) :: args_obj
 type(csd_generator) :: csdgen_obj
-type(csd_solution_set) :: csdss_Xinit, csdss_Xcur, csdss_Xnew, csdss_Xsol
+type(csd_solution_set) :: csdss_Xinit, csdss_Xsol
 type(csd_write_handle) :: csdwh_obj
 type(csd_mpi_handle) :: csdmh_obj
+type(csd_ga_pool) :: csdga_obj
 
 ! Initialize the RNG object from the module
 call rng_inst%seed(my_rank)
@@ -119,14 +121,12 @@ call CYG_INDEXTABLE(N,M,index_level,index_pair)
 call CYGC_COEFF(N,M,COEFF)
 ! Allocate workspace arrays
 allocate(Perm(M))
-allocate(Perm_new(M))
 allocate(Perm_sol(M))
 allocate(QPerm(N))
 allocate(QPerm_new(N))
 ! Start with the identity permutation
 do i = 1, M
     Perm(i) = i
-    Perm_new(i) = i
     Perm_sol(i) = i
 end do
 ! Initialize all process to the identity qubit permutation first - however, do not perform qubit permutation selection on root process
@@ -142,11 +142,7 @@ end do
 call csdgen_obj%constructor(N,M,0,index_level,index_pair,COEFF)
 call csdss_Xinit%constructor(N,M,nset,type_spec)
 csdss_Xinit%arr(1)%toggle_csd = .false.
-csdss_Xinit%arr(2)%toggle_csd = .false.
-csdss_Xinit%arr(4)%toggle_csd = .false.
 csdss_Xinit%arr(5)%toggle_csd = .false.
-call csdss_Xcur%constructor(N,M,nset,type_spec)
-call csdss_Xnew%constructor(N,M,nset,type_spec)
 call csdss_Xsol%constructor(N,M,nset,type_spec)
 call csdwh_obj%constructor(N)
 call csdmh_obj%constructor(N,M)
@@ -160,7 +156,7 @@ hist_idx = 2
 ! Repeatedly find random permutations until the number of gates has been lowered relative to the original number of gates (i.e. the identity qubit permutation)
 if(my_rank /= root) then
     do i = 1, args_obj%PERM_ITER_LIM
-        call qperm_generate(N,QPerm_new)
+        call perm_generate(N,QPerm_new)
         call qperm_process(N,M,csdss_Xinit,csdgen_obj,QPerm_new,X,enew)
         if(enew <= ecur) then
             QPerm = QPerm_new
@@ -178,14 +174,11 @@ end if
 c_mid = MPI_Wtime()
 
 ! Initialize solution to initial setup
-call csdss_Xcur%copy(csdss_Xinit)
-enew = ecur
-call csdss_Xnew%copy(csdss_Xinit)
 esol = ecur
 call csdss_Xsol%copy(csdss_Xinit)
-tol = CalcTol(args_obj%TOL_COEFF,ecur)
-t0 = tol
-e0 = ecur
+! Constructor only run now - change this?
+call csdga_obj%constructor(csdss_Xsol,csdgen_obj,15,2,200,0.8d0,0.01d0)
+call csdga_obj%initialize_chromosomes()
 idx_sol = 0
 SYNCH_ct = 0
 
@@ -204,92 +197,25 @@ do i = 1, POPTNUM
 	call subgroups%l(i)%constructor(groupsizes(i))
 end do
 
-c_tot = 0.0d0
+call csdga_obj%print_state()
 do i = 1, args_obj%ITER_LIM
-    Perm_new = Perm
-    call NeighbourhoodOpt(N,M,csdss_Xinit,csdss_Xcur,csdss_Xnew,Perm_new)
-    call csdss_Xnew%run_csdr(csdgen_obj)
-    enew = csdss_Xnew%csdr_ss_ct
-    delta = enew - ecur
-    !write(*,*)"New number of gates = ",ecur,"/",enew
-    if(enew <= ecur) then
-        call csdss_Xcur%copy(csdss_Xnew)
-        ecur = enew
-        Perm = Perm_new
-        if(enew < esol) then
-            call csdss_Xsol%copy(csdss_Xcur)
-            esol = ecur
-            Perm_sol = Perm
-            idx_sol = i
-        end if
-    else
-        ! No improvement to the cost function
-        if(delta <= tol) then
-            call csdss_Xcur%copy(csdss_Xnew)
-            ecur = enew
-            Perm = Perm_new
-        end if
+    call csdga_obj%perform_step()
+    if(mod(i,100) == 0) then
+    	write(*,*)'step num = ',i
+    	call csdga_obj%print_state()
     end if
-    history(hist_idx) = ecur
+    j = csdga_obj%chromosome_cost(1)
+    if(esol > j) then
+    	esol = j
+    	Perm_sol = csdga_obj%chromosome_pool(1,:)
+    	idx_sol = i
+    end if
+    history(hist_idx) = esol
     hist_idx = hist_idx + 1
-    ! Limit the maximum tolerance to the initial tolerance value
-    if(ecur < e0) then
-        tol = CalcTol(args_obj%TOL_COEFF,ecur)
-    else
-        tol = t0
-    end if
-    ! Perform synchronization and comparisons after every SYNCH_NUM iterations
     SYNCH_ct = SYNCH_ct + 1
-    if(SYNCH_ct == args_obj%SYNCH_NUM .and. POPTNUM < p) then
-    	c_t1 = MPI_Wtime()
-    	! Wait for all processes to reach this point - possible slowdown issue between fast/slow threads
-    	call MPI_Barrier(MPI_COMM_WORLD,ierr)
-    	! Collate all current objective function values
-    	MPI_int_buffer(1) = ecur
-    	call MPI_Allgather(MPI_int_buffer,1,MPI_INTEGER,r_col_array,1,MPI_INTEGER,MPI_COMM_WORLD,ierr)
-    	! Obtain ranking for each process
-    	p_rank_pos = -1
-    	call mrgrnk(r_col_array,p_rank_pos)
-    	! Construct groupings - note index i is already used >_>
-    	l = POPTNUM+1
-    	do j = 1, POPTNUM
-    		num = p_rank_pos(j)
-    		if(my_rank+1 == num) p_group = j
-    		subgroups%l(j)%arr(1) = num-1
-    		do k = 2, groupsizes(j)
-    			num = p_rank_pos(l)
-    			if(my_rank+1 == num) p_group = j
-    			subgroups%l(j)%arr(k) = num-1
-    			l = l + 1
-    		end do
-    	end do
-        ! Get handle to the new group
-        call MPI_Group_incl(mpi_group_world,groupsizes(p_group),subgroups%l(p_group)%arr,mpi_group_local,ierr)
-        ! Create communicator for the new group
-        call MPI_Comm_create(MPI_COMM_WORLD,mpi_group_local,mpi_comm_local,ierr)
-        ! Broadcast optimal solutions from root processes to the rest of the local groups - note that root process (the most optimal) is always the rank 0 in each group
-        call csdmh_obj%synchronize(QPerm,Perm,csdss_Xcur,mpi_group_local,mpi_comm_local,0)
-!       ! Check difference
-!       Xcpy = matmul(csdss_Xcur%arr(2)%X,csdss_Xcur%arr(3)%X)
-! 		Xcpy = matmul(csdss_Xcur%arr(1)%X,Xcpy)
-! 		Xcpy = matmul(Xcpy,csdss_Xcur%arr(4)%X)
-! 		Xcpy = matmul(Xcpy,csdss_Xcur%arr(5)%X)
-! 		write(*,*)"Process ",my_rank," has difference matrix: ",Xcpy-X
-        ! Deallocate the new group and corresponding communicator
-        call MPI_Group_free(mpi_group_local,ierr)
-        call MPI_Comm_free(mpi_comm_local,ierr)
-    	! Reset synchronization count
-    	SYNCH_ct = 0
-    	c_t2 = MPI_Wtime()
-    	c_tot = c_tot + c_t2 - c_t1
-    end if
 end do
-if(ecur < esol) then
-    call csdss_Xsol%copy(csdss_Xcur)
-    esol = ecur
-    Perm_sol = Perm
-    idx_sol = args_obj%ITER_LIM
-end if
+! After optimal solution has been found, reconstruct it in csdss_Xsol
+esol = csdga_obj%compute_cost(Perm_sol)
 ! End timing here!
 c_end = MPI_Wtime()
 c_time1 = c_mid - c_start
@@ -342,7 +268,7 @@ if(my_rank /= root) then
 end if
 write(*,'(a,i4,a,i8,a,i8)')"Process ",my_rank,": Initial number of gates before/after reduction = ",csdss_Xinit%csd_ss_ct,"/",csdss_Xinit%csdr_ss_ct
 write(*,'(a,i4,a,i8,a,i8,a,i8,a,i8,a,i8,a,i8,a,i8)')"Process ",my_rank,": Breakdown of solution = ",csdss_Xsol%arr(1)%csdr_ct,"/",csdss_Xsol%arr(2)%csdr_ct,"/",csdss_Xsol%arr(3)%csdr_ct,"/",csdss_Xsol%arr(4)%csdr_ct,"/",csdss_Xsol%arr(5)%csdr_ct,"/",csdss_Xsol%csdr_ss_ct," at step number ",idx_sol
-write(*,'(a,i4,a,f15.9,a,f15.9,a,f15.9,a)')"Process ",my_rank,": Time taken = ",c_time1,"/",c_time2,"/",c_tot," seconds."
+write(*,'(a,i4,a,f15.9,a,f15.9,a)')"Process ",my_rank,": Time taken = ",c_time1,"/",c_time2," seconds."
 call flush(6)
 if(my_rank /= p-1) then
     call MPI_Send(MPI_int_buffer,1,MPI_INTEGER,my_rank+1,101,MPI_COMM_WORLD,ierr)
@@ -363,7 +289,6 @@ deallocate(index_level)
 deallocate(index_pair)
 deallocate(COEFF)
 deallocate(Perm)
-deallocate(Perm_new)
 deallocate(Perm_sol)
 deallocate(QPerm)
 deallocate(QPerm_new)
@@ -375,11 +300,10 @@ deallocate(groupsizes)
 call subgroups%destructor()
 call csdgen_obj%destructor()
 call csdss_Xinit%destructor()
-call csdss_Xcur%destructor()
-call csdss_Xnew%destructor()
 call csdss_Xsol%destructor()
 call csdwh_obj%destructor()
 call csdmh_obj%destructor()
+call csdga_obj%destructor()
 
 end subroutine OptQC_REAL
 

@@ -435,3 +435,30 @@ do i = 1, len
 end do
 
 end subroutine invertperm
+
+! Generates a random permutation of length M
+subroutine perm_generate(M,perm)
+
+use rng
+
+implicit none
+integer :: M
+integer :: perm(M)
+
+integer :: i, idx, temp
+
+! Start with the identity permutation
+do i = 1, M
+    perm(i) = i
+end do
+! Choose each element randomly and fix the chosen ones from the left of the array
+do i = 1, M-1
+    idx = i-1+rng_inst%rint(M-i+1)
+    if(i /= idx) then
+        temp = perm(i)
+        perm(i) = perm(idx)
+        perm(idx) = temp
+    end if
+end do
+
+end subroutine perm_generate

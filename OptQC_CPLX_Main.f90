@@ -164,7 +164,7 @@ hist_idx = 2
 ! Repeatedly find random permutations until the number of gates has been lowered relative to the original number of gates (i.e. the identity qubit permutation)
 if(my_rank /= root) then
     do i = 1, args_obj%PERM_ITER_LIM
-        call qperm_generate(N,QPerm_new)
+        call perm_generate(N,QPerm_new)
         call qperm_process_CPLX(N,M,csdss_Xinit,csdgen_obj,QPerm_new,X,enew)
         if(enew <= ecur) then
             QPerm = QPerm_new
