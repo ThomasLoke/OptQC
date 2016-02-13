@@ -13,7 +13,7 @@ character(len=128) :: finput, fhist, fperm, ftex
 integer :: N, M, d, i, j, k, l, Msq, num
 integer :: ecur, enew, esol, idx_sol
 integer, allocatable :: history(:)
-integer :: hist_idx, m_pos, delta, tol, t0, e0
+integer :: hist_idx, m_pos
 ! Input arrays
 double precision, allocatable :: X(:,:)
 ! Functions
@@ -183,9 +183,6 @@ enew = ecur
 call csdss_Xnew%copy(csdss_Xinit)
 esol = ecur
 call csdss_Xsol%copy(csdss_Xinit)
-tol = CalcTol(args_obj%TOL_COEFF,ecur)
-t0 = tol
-e0 = ecur
 idx_sol = 0
 SYNCH_ct = 0
 
@@ -210,7 +207,6 @@ do i = 1, args_obj%ITER_LIM
     call NeighbourhoodOpt(N,M,csdss_Xinit,csdss_Xcur,csdss_Xnew,Perm_new)
     call csdss_Xnew%run_csdr(csdgen_obj)
     enew = csdss_Xnew%csdr_ss_ct
-    delta = enew - ecur
     !write(*,*)"New number of gates = ",ecur,"/",enew
     if(enew <= ecur) then
         call csdss_Xcur%copy(csdss_Xnew)
@@ -222,21 +218,6 @@ do i = 1, args_obj%ITER_LIM
             Perm_sol = Perm
             idx_sol = i
         end if
-    else
-        ! No improvement to the cost function
-        if(delta <= tol) then
-            call csdss_Xcur%copy(csdss_Xnew)
-            ecur = enew
-            Perm = Perm_new
-        end if
-    end if
-    history(hist_idx) = ecur
-    hist_idx = hist_idx + 1
-    ! Limit the maximum tolerance to the initial tolerance value
-    if(ecur < e0) then
-        tol = CalcTol(args_obj%TOL_COEFF,ecur)
-    else
-        tol = t0
     end if
     ! Perform synchronization and comparisons after every SYNCH_NUM iterations
     SYNCH_ct = SYNCH_ct + 1
@@ -269,20 +250,25 @@ do i = 1, args_obj%ITER_LIM
         call MPI_Comm_create(MPI_COMM_WORLD,mpi_group_local,mpi_comm_local,ierr)
         ! Broadcast optimal solutions from root processes to the rest of the local groups - note that root process (the most optimal) is always the rank 0 in each group
         call csdmh_obj%synchronize(QPerm,Perm,csdss_Xcur,mpi_group_local,mpi_comm_local,0)
-!       ! Check difference
-!       Xcpy = matmul(csdss_Xcur%arr(2)%X,csdss_Xcur%arr(3)%X)
-! 		Xcpy = matmul(csdss_Xcur%arr(1)%X,Xcpy)
-! 		Xcpy = matmul(Xcpy,csdss_Xcur%arr(4)%X)
-! 		Xcpy = matmul(Xcpy,csdss_Xcur%arr(5)%X)
-! 		write(*,*)"Process ",my_rank," has difference matrix: ",Xcpy-X
         ! Deallocate the new group and corresponding communicator
         call MPI_Group_free(mpi_group_local,ierr)
         call MPI_Comm_free(mpi_comm_local,ierr)
+        ! Copy over current values
+        ecur = csdss_Xcur%csdr_ss_ct
+        if(ecur < esol) then
+		    call csdss_Xsol%copy(csdss_Xcur)
+		    esol = ecur
+		    Perm_sol = Perm
+		    idx_sol = args_obj%ITER_LIM
+		end if
     	! Reset synchronization count
     	SYNCH_ct = 0
     	c_t2 = MPI_Wtime()
     	c_tot = c_tot + c_t2 - c_t1
     end if
+    ! Update history
+    history(hist_idx) = ecur
+    hist_idx = hist_idx + 1
 end do
 if(ecur < esol) then
     call csdss_Xsol%copy(csdss_Xcur)

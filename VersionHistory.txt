@@ -56,6 +56,14 @@ v1.2F (Final):
 - All results (generated using a pure random walk) are better than before woots.
 - Decided to store current progress as v1.2F - should not require any more changes, it is as optimal as can be given the current framework. Next up, genetic algorithm woots.
 
+v1.3FFR (Final-for-realz)
+- Note: Genetic algorithm stuff flopped. Boooooo.
+- Verified RandReal decomposition results.
+- It appears that any deviation from the pure random walk is pointless - only yielding worse results. Time to get rid of threshold annealing stuff. RAWR.
+- Gotten rid of threshold annealing stuff - ran simulations that confirm results.
+- Updated documentation.
+- Decided to store current progress as v1.3FFR - for REALZ this time. Unless I decide to sort out the inefficiency in recovering U in OptQC_MPI.f90. Which I probably won't.
+
 ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
 ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
 

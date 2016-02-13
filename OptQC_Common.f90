@@ -242,19 +242,6 @@ end subroutine CYGC_COEFF
 
 ! Functions/Subroutines for Main
 
-function CalcTol(TOL_COEFF,ecur) result(res)
-
-implicit none
-double precision :: TOL_COEFF
-integer :: ecur
-
-integer :: res
-
-res = ceiling(TOL_COEFF * ecur)
-return
-
-end function CalcTol
-
 function FindMinPos(p,arr) result(res)
 
 implicit none

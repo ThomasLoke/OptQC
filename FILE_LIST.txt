@@ -11,9 +11,35 @@ List of files for OptQC:
 -> OptQC_MPI.f90 - Defines the object required to handle the MPI synchronization procedure between threads.
 -> OptQC_MRGRNK.f90 - Defines the object required to handle rankings.
 -> OptQC_Perm.f90 - Defines the functions for manipulating REAL and CPLX matrices using permutations.
--> OptQC_RNG.f90 -> Defines the object required for independent thread-safe RNGs.
+-> OptQC_RNG.f90 - Defines the object required for independent thread-safe RNGs.
 -> OptQC_WKVar.f90 - Defines the objects needed by the REAL implementation.
-circuit for a CPLX matrix.
 
 - Makefile: Specifies the compilation order for the program. Requires an environment with MPI and LAPACK libraries.
 - job.pbs: Example PBS script file to run the program on a multiprocessor system with several nodes.
+
+- Sample input/output files:
+-> RandReal.txt (input): An 8-by-8 random REAL matrix.
+-> RandReal_history.dat (output): Time-series of the number of gates for the process with the optimal decomposition of RandReal.txt.
+-> RandReal_perm.dat (output): Optimal permutation of RandReal.txt in list form and matrix form.
+-> RandReal_circuit.tex (output): TeX file that produces the circuit diagram for the optimal decomposition of RandReal.txt.
+-> job.pbs.o2680707 (output): Terminal output for running the program on RandReal.txt.
+-> S8.txt (input): A 16-by-16 REAL matrix corresponding to the quantum walk operator on the 8-star graph.
+-> S8_history.dat (output): Time-series of the number of gates for the process with the optimal decomposition of S8.txt.
+-> S8_perm.dat (output): Optimal permutation of S8.txt in list form and matrix form.
+-> S8_circuit.tex (output): TeX file that produces the circuit diagram for the optimal decomposition of S8.txt.
+-> job.pbs.o2684097 (output): Terminal output for running the program on S8.txt.
+-> 3CT3.txt (input): A 42-by-42 REAL matrix corresponding to the quantum walk operator on the 3rd generation 3-Cayley tree.
+-> 3CT3_history.dat (output): Time-series of the number of gates for the process with the optimal decomposition of 3CT3.txt.
+-> 3CT3_perm.dat (output): Optimal permutation of 3CT3.txt in list form and matrix form.
+-> 3CT3_circuit.tex (output): TeX file that produces the circuit diagram for the optimal decomposition of 3CT3.txt.
+-> job.pbs.o2680709 (output): Terminal output for running the program on 3CT3.txt.
+-> Shor_alg.txt (input): A 128-by-128 CPLX matrix corresponding to the N=15, C=7 implementation of Shor's algorithm.
+-> Shor_alg_history.dat (output): Time-series of the number of gates for the process with the optimal decomposition of Shor_alg.txt.
+-> Shor_alg_perm.dat (output): Optimal permutation of Shor_alg.txt in list form and matrix form.
+-> Shor_alg_circuit.tex (output): TeX file that produces the circuit diagram for the optimal decomposition of Shor_alg.txt.
+-> job.pbs.o2680713 (output): Terminal output for running the program on Shor_alg.txt.
+-> QFT64.txt (input): A 64-by-64 CPLX matrix corresponding to the QFT matrix of 64 dimensions.
+-> QFT64_history.dat (output): Time-series of the number of gates for the process with the optimal decomposition of QFT64.txt.
+-> QFT64_perm.dat (output): Optimal permutation of QFT64.txt in list form and matrix form.
+-> QFT64_circuit.tex (output): TeX file that produces the circuit diagram for the optimal decomposition of QFT64.txt.
+-> job.pbs.o2684102 (output): Terminal output for running the program on QFT64.txt.

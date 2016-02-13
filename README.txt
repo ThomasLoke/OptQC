@@ -1,6 +1,6 @@
 README for OptQC:
 
-- This program is designed to use simulated annealing to find an optimal permutations P and Q such that
+- This program is designed to use a descending random walk to find an optimal permutations P and Q such that
   the decomposition of the unitary matrix U = Q^T.P^T.U'.P.Q requires less gates.
 
 - Requires a multiprocessor system running MPI and LAPACK.
@@ -11,7 +11,7 @@ README for OptQC:
 
 - The command to execute the program (inside a PBS script) follows the format:
 
-	mpirun ./OptQC <Name-of-matrix-file> <Real/Complex-matrix> <Number-of-iterations-for-SA> <Number-of-iterations-for-QS> <Alpha-value>
+	mpirun ./OptQC <Name-of-matrix-file> <Real/Complex-matrix> <Number-of-iterations-for-DRW> <Number-of-iterations-for-QS> <Number-of-iterations-for-synchronization>
 
   where five parameters are supplied to the program. The parameters are:
 -> <Name-of-matrix-file>: The file in which the matrix is stored. For example, if the matrix was
@@ -39,18 +39,18 @@ README for OptQC:
    a real or complex matrix.
    For a real matrix, this argument is 0.
    For a complex matrix, this argument is 1.
--> <Number-of-iterations-for-SA>: This argument specifies the number of iterations to use when performing
-   simulated annealing. Hence, a positive integer must be supplied.
+-> <Number-of-iterations-for-DRW>: This argument specifies the number of iterations to use when performing
+   the descending random walk. Hence, a positive integer must be supplied.
 -> <Number-of-iterations-for-QS>: This argument specifies the number of iterations to use when performing
    the search for a different qubit permutation. Hence, a positive integer must be supplied.
--> <Alpha-value>: This argument specifies the alpha value, which determines the acceptance t
-   threshold in the simulated annealing process. Must be a floating point value in the range 0 <= alpha < 1
+-> <Number-of-iterations-for-synchronization>: Given a number x for this argument, the program synchronizes
+   threads after every x iterations. Hence, a positive integer must be supplied.
+
 - Several output files are generated from this program (* indicates the <Name-of-matrix-file> argument):
--> "*_gates.txt": This file gives the optimal decomposition of the matrix in text.
--> "*_plot.tex": This file, together with the Qcircuit TeX package
+-> "*_circuit.tex": This file, together with the Qcircuit TeX package
    (see http://www.cquic.org/Qcircuit/Qcircuit.tex), can be used to draw the quantum circuit of the
    optimal decomposition using any TeX installation.
--> "*_history.dat": This file provides the time-series of the simulated annealing process for the process
+-> "*_history.dat": This file provides the time-series of the descending random walk for the process
    that reaches the optimal decomposition.
 -> "*_perm.dat": This file gives the chosen qubit permutation q in list form, and the chosen permutation p in
    list form.
@@ -66,9 +66,9 @@ README for OptQC:
 #PBS -j oe
 
 cd $PBS_O_WORKDIR
-mpirun ./OptQC RandReal 0 40000 1000 0.010
+mpirun ./OptQC RandReal 0 40000 1000 15000
 
   This PBS script executes the program on 8 nodes (96 threads), reading a complex unitary matrix from the file RandReal.txt, 
-  using 40000 iterations for simulated annealing and 1000 iterations to find a different qubit permutation. The output files 
-  "RandReal_plot.txt", "RandReal_plot.tex", "RandReal_history.dat" and "RandReal_perm.dat" are produced. See the file 
-  "job.pbs.o1688661" for the console output produced by the program.
+  using 40000 iterations for the descending random walk, 1000 iterations to find a different qubit permutation and synchronizing 
+  threads after every 15000 iterations. The output files "RandReal_circuit.txt", "RandReal_history.tex" and 
+  "RandReal_perm.dat" are produced. See the file "job.pbs.o2680707" for the console output produced by the program.

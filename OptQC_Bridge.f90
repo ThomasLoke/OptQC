@@ -30,8 +30,6 @@ read(fin,*)args_obj%ITER_LIM
 call get_command_argument(4,fin,fdum,fstat)
 read(fin,*)args_obj%PERM_ITER_LIM
 call get_command_argument(5,fin,fdum,fstat)
-read(fin,*)args_obj%TOL_COEFF
-call get_command_argument(6,fin,fdum,fstat)
 read(fin,*)args_obj%SYNCH_NUM
 
 if(len_trim(args_obj%fbase) == 0) then
@@ -50,7 +48,7 @@ end if
 if(my_rank == root) then
     ! Output of obtained parameters
     write(*,*)
-    write(*,'(a,a,a,i2,a,i8,a,i8,a,f9.6,a,i8)')"Command-line arguments: ",args_obj%fbase(1:args_obj%flength)," ",args_obj%PROG_TYPE," ",args_obj%ITER_LIM," ",args_obj%PERM_ITER_LIM," ",args_obj%TOL_COEFF," ",args_obj%SYNCH_NUM
+    write(*,'(a,a,a,i2,a,i8,a,i8,a,i8)')"Command-line arguments: ",args_obj%fbase(1:args_obj%flength)," ",args_obj%PROG_TYPE," ",args_obj%ITER_LIM," ",args_obj%PERM_ITER_LIM," ",args_obj%SYNCH_NUM
     write(*,'(a,i8)')"Total number of MPI threads: ",p
     write(*,*)
 end if

@@ -1323,7 +1323,7 @@ else
 end if
 ! Just enough precision to look nice in the circuit plot
 302 format('& ',F7.4)
-! Excessive precision for result checking - looks awful in circuit pllot
+! Excessive precision for result checking - looks awful in circuit plot
 !302 format('& ',F12.9)
 this%csdr_ct = ct
 call workstr%destructor()
