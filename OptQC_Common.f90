@@ -349,32 +349,6 @@ return
 
 end function RINT
 
-! Generates a random qubit permutation
-subroutine qperm_generate(N,qperm)
-
-implicit none
-integer :: N
-integer :: qperm(N)
-
-integer :: i, idx, temp
-integer :: RINT
-
-! Start with the identity qubit permutation
-do i = 1, N
-    qperm(i) = i
-end do
-! Choose each element randomly and fix the chosen ones from the left of the array
-do i = 1, N-1
-    idx = i-1+RINT(N-i+1)
-    if(i /= idx) then
-        temp = qperm(i)
-        qperm(i) = qperm(idx)
-        qperm(idx) = temp
-    end if
-end do
-
-end subroutine qperm_generate
-
 ! Functions/Subroutines for Output
 
 function IsEmpty(workstr,lp,rp)

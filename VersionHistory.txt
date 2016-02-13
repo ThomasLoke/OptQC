@@ -80,3 +80,21 @@ v0.51:
 - Design issues OP - permutation matrices being interpreted as complex matrices (and hence uses the complex decomposition) - terribly inefficient for permutation matrices, which are completely real.
 - Ended up with a gajillion segfaults during deallocation - also design issues are sads.
 - Decided to store current progress as v0.51 - overhauling objects using a combined real/cplx implementation.
+
+v0.52:
+- LET's DO IT! ONCE MORE! OVERHAUL TIME!
+- Combined the real and cplx pairs for OptQC_CSD.f90, OptQC_Perm. SHO MUCH WORK!
+- Corresponding edits in the main files.
+- FOUND BUG STUPID CIRCUIT ALLOCATION SIZE FOR CPLX >_>
+- Identified bad mistake in looping through qubit permutations - changed < to <=.
+- Identified bug in csd_generator_run_csdphase() procedure - dimensions of Z should be (M,M+N), not (M,M) which is obtained from the pointer.
+- Fixed bug by introducing a new variable Z_temp specific to the cplx implementation.
+- HUGE BUG HUNT:
+-> Two issues: (1) this and MPI_COMPOSITE (see ../Comp folder) results do not match with Qcompiler results running on Fornax; and (2) Mathematica doesn't seem to match the results....
+-> Issue (1) EVENTUALLY found to be because of dodgy reading procedure in Qcompiler where precision fails after a certain point - 'fixed' by adding -i8 -r8 compile options.
+-> Decided on removing -i8 -r8 compile options from the Makefile of this program - unnecessary (results are still the same) and removes possible compile issues.
+-> Issue (2) - NOT RESOLVED - either because Mathematica formulation is incorrect somehow - or because Qcompiler was bugged to begin with.
+-> Good enough for now - I CAN FINALLY EAT!
+-> Checked by entering a real matrix as complex, compared with Qcompiler implementation - results are identical! So the problem being complex matrices.... >_>
+-> From real results, Mathematica indicates that GATEPHASE definition is {{1,0},{0,exp(i*param*pi)}}.
+- Decided to store current progress as v0.52 - the bug hunt continues...

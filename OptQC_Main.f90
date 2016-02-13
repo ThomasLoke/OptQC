@@ -1,7 +1,7 @@
 subroutine OptQC_REAL(root,my_rank,p,args_obj)
 
 use common_module
-use csd_real
+use csd_tools
 use mpi
 
 implicit none
@@ -16,6 +16,7 @@ double precision, allocatable :: X(:,:)
 integer :: FindMinPos, CalcTol
 ! Workspace arrays
 integer, allocatable :: index_level(:), index_pair(:,:,:)
+double precision, allocatable :: COEFF(:,:)
 integer, allocatable :: Perm(:), Perm_new(:), Perm_sol(:)
 integer, allocatable :: QPerm(:)
 
@@ -29,7 +30,9 @@ double precision :: c_start, c_mid, c_end, c_time1, c_time2
 ! Comparison variables for initial permutation
 integer :: einit_root
 
-! Objects
+! Objects and specification variables
+integer :: nset
+integer, allocatable :: type_spec(:)
 type(prog_args) :: args_obj
 type(csd_generator) :: csdgen_obj
 type(csd_solution_set) :: csdss_Xinit, csdss_Xcur, csdss_Xnew, csdss_Xsol
@@ -37,6 +40,8 @@ type(csd_write_handle) :: csdwh_obj
 
 ! Initialize a random seed for the RNG
 call init_random_seed(my_rank)
+! Set the number of matrices to be 5
+nset = 5
 
 if(my_rank == root) then
     write(*,'(a)')"Performing decomposition of a real orthogonal matrix."
@@ -86,10 +91,13 @@ allocate(r_col_array(p))
 ! Allocate input and output arrays
 allocate(index_level(M-1))
 allocate(index_pair(M/2,2,N))
+allocate(COEFF(M,M))
 index_level = 0
 index_pair = 0
 ! index_level and index_pair are invariant per CSD invocation
 call CYG_INDEXTABLE(N,M,index_level,index_pair)
+! COEFF is also invariant per CSD invocation
+call CYGC_COEFF(N,M,COEFF)
 ! Allocate workspace arrays
 allocate(Perm(M))
 allocate(Perm_new(M))
@@ -110,13 +118,18 @@ else
     call qperm_generate(N,QPerm)
 end if
 ! Run object constructors
-call csdgen_obj%constructor(N,M,index_level,index_pair)
-call csdss_Xinit%constructor(5,N,M)
+allocate(type_spec(nset))
+do i = 1, nset
+    ! Set all matrices to be of real type
+    type_spec(i) = 0
+end do
+call csdgen_obj%constructor(N,M,0,index_level,index_pair,COEFF)
+call csdss_Xinit%constructor(N,M,nset,type_spec)
 csdss_Xinit%arr(1)%toggle_csd = .false.
 csdss_Xinit%arr(5)%toggle_csd = .false.
-call csdss_Xcur%constructor(5,N,M)
-call csdss_Xnew%constructor(5,N,M)
-call csdss_Xsol%constructor(5,N,M)
+call csdss_Xcur%constructor(N,M,nset,type_spec)
+call csdss_Xnew%constructor(N,M,nset,type_spec)
+call csdss_Xsol%constructor(N,M,nset,type_spec)
 call csdwh_obj%constructor(N)
 ! Convention: U = Q^T P^T U' P Q - CHECKED AND VERIFIED
 call permlisttomatrixtr(M,Perm,csdss_Xinit%arr(2)%X)                            ! P^T
@@ -129,7 +142,7 @@ if(my_rank /= root) then
     j = 0
     ! Keep testing new qubit permutations until a lower number of gates is found, or until the limit PERM_ITER_LIM has been reached,
     ! in which case the identity permutation is used instead.
-    do while(einit_root < ecur)
+    do while(einit_root <= ecur)
         if(j == args_obj%PERM_ITER_LIM) then
             do i = 1, N
                 QPerm(i) = i
@@ -262,8 +275,6 @@ dummy = 0
 ! Assuming root = 0
 if(my_rank /= root) then
     call MPI_Recv(dummy,1,MPI_INTEGER,my_rank-1,101,MPI_COMM_WORLD,mpi_stat,ierr)
-else
-    write(*,'(a,i4)')"Size of communicator: ",p
 end if
 write(*,'(a,i4,a,i8,a,i8)')"Process ",my_rank,": Initial number of gates before/after reduction = ",csdss_Xinit%csd_ss_ct,"/",csdss_Xinit%csdr_ss_ct
 write(*,'(a,i4,a,i8,a,i8,a,i8,a,i8,a,i8,a,i8,a,i8)')"Process ",my_rank,": Breakdown of solution = ",csdss_Xsol%arr(1)%csdr_ct,"/",csdss_Xsol%arr(2)%csdr_ct,"/",csdss_Xsol%arr(3)%csdr_ct,"/",csdss_Xsol%arr(4)%csdr_ct,"/",csdss_Xsol%arr(5)%csdr_ct,"/",csdss_Xsol%csdr_ss_ct," at step number ",idx_sol
@@ -280,10 +291,12 @@ deallocate(history)
 deallocate(r_col_array)
 deallocate(index_level)
 deallocate(index_pair)
+deallocate(COEFF)
 deallocate(Perm)
 deallocate(Perm_new)
 deallocate(Perm_sol)
 deallocate(QPerm)
+deallocate(type_spec)
 
 ! Run object destructors
 call csdgen_obj%destructor()

@@ -1,6 +1,6 @@
 subroutine NeighbourhoodOpt(M,csdss_source,csdss_targ,Perm)
 
-use csd_real
+use csd_tools
 
 implicit none
 type(csd_solution_set) :: csdss_source, csdss_targ
@@ -17,7 +17,11 @@ do while (s2 == s1)
     s2 = RINT(M)
 end do
 ! Perform swap between elements s1 and s2
-call SwapElem(M,csdss_source%arr(3)%X,csdss_targ%arr(3)%X,s1,s2)
+if(csdss_source%arr(3)%obj_type == 0) then
+    call SwapElem(M,csdss_source%arr(3)%X,csdss_targ%arr(3)%X,s1,s2)
+else
+    call SwapElem_CPLX(M,csdss_source%arr(3)%Xc,csdss_targ%arr(3)%Xc,s1,s2)
+end if
 ! Reflect change in the permutation
 temp = Perm(s1)
 Perm(s1) = Perm(s2)
@@ -60,25 +64,37 @@ return
 
 end subroutine SwapElem
 
-subroutine ApplyPerm(M,X,Z,Perm)
+subroutine SwapElem_CPLX(M,X,Z,s1,s2)
 
 implicit none
 integer :: M
-double precision :: X(M,M), Z(M,M)
-integer :: Perm(M)
+double complex :: X(M,M), Z(M,M)
+integer :: s1, s2
 
-integer :: i, j, row
+integer :: i
 
+Z = X
 do i = 1, M
-    row = Perm(i)
-    do j = 1, M
-        Z(i,j) = X(row,Perm(j))
-    end do
+    if(i /= s1 .and. i /= s2) then
+        Z(i,s1) = X(i,s2)
+        Z(i,s2) = X(i,s1)
+        Z(s1,i) = X(s2,i)
+        Z(s2,i) = X(s1,i)
+    else
+        if(i == s1) then
+            Z(s1,s1) = X(s2,s2)
+            Z(s2,s2) = X(s1,s1)
+        end if
+        if(i == s2) then
+            Z(s2,s1) = X(s1,s2)
+            Z(s1,s2) = X(s2,s1)
+        end if
+    end if
 end do
 
 return
 
-end subroutine ApplyPerm
+end subroutine SwapElem_CPLX
 
 subroutine permlisttomatrix(M,PermList,PermMat)
 
@@ -126,7 +142,7 @@ end subroutine permlisttomatrixtr
 
 subroutine qperm_compute(N,M,csd_obj,qperm)
 
-use csd_real
+use csd_tools
 
 implicit none
 integer :: N, M
@@ -212,9 +228,35 @@ deallocate(bitval)
 
 end subroutine qperm_compute
 
+! Generates a random qubit permutation
+subroutine qperm_generate(N,qperm)
+
+implicit none
+integer :: N
+integer :: qperm(N)
+
+integer :: i, idx, temp
+integer :: RINT
+
+! Start with the identity qubit permutation
+do i = 1, N
+    qperm(i) = i
+end do
+! Choose each element randomly and fix the chosen ones from the left of the array
+do i = 1, N-1
+    idx = i-1+RINT(N-i+1)
+    if(i /= idx) then
+        temp = qperm(i)
+        qperm(i) = qperm(idx)
+        qperm(idx) = temp
+    end if
+end do
+
+end subroutine qperm_generate
+
 subroutine qperm_process(N,M,csdss_obj,csdgen_obj,QPerm,X,ecur)
 
-use csd_real
+use csd_tools
 
 implicit none
 integer :: N, M
@@ -238,9 +280,35 @@ ecur = csdss_obj%csdr_ss_ct
 
 end subroutine qperm_process
 
+subroutine qperm_process_CPLX(N,M,csdss_obj,csdgen_obj,QPerm,X,ecur)
+
+use csd_tools
+
+implicit none
+integer :: N, M
+type(csd_solution_set) :: csdss_obj
+type(csd_generator) :: csdgen_obj
+integer :: QPerm(N)
+double complex :: X(M,M)
+integer :: ecur
+
+! Construct state permutation matrix from qubit permutation
+call qperm_compute(N,M,csdss_obj%arr(5),QPerm)                              ! Q
+call qperm_reverse(N,csdss_obj%arr(5),csdss_obj%arr(1))                     ! Q^T
+! Note: Q U Q^T = P^T U' P, so we treat Q U Q^T as the matrix to be decomposed
+csdss_obj%arr(3)%Xc = matmul(csdss_obj%arr(5)%X,X)                          ! Q U
+csdss_obj%arr(3)%Xc = matmul(csdss_obj%arr(3)%Xc,csdss_obj%arr(1)%X)        ! Q U Q^T
+! Count initial number of gates (including reduction)
+call csdss_obj%arr(3)%run_csdr(csdgen_obj)
+csdss_obj%csd_ss_ct = csdss_obj%arr(3)%csd_ct + csdss_obj%arr(1)%csd_ct + csdss_obj%arr(5)%csd_ct
+csdss_obj%csdr_ss_ct = csdss_obj%arr(3)%csdr_ct + csdss_obj%arr(1)%csdr_ct + csdss_obj%arr(5)%csdr_ct
+ecur = csdss_obj%csdr_ss_ct
+
+end subroutine qperm_process_CPLX
+
 subroutine qperm_reverse(N,csd_obj_source,csd_obj_targ)
 
-use csd_real
+use csd_tools
 
 implicit none
 integer :: N

@@ -6,4 +6,4 @@
 #PBS -j oe
 
 cd $PBS_O_WORKDIR
-mpirun ./OptQC MatU 1 40000 500 0.010
+mpirun ./OptQC MatU 1 10000 500 0.010

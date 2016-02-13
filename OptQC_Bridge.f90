@@ -22,16 +22,6 @@ root = 0
 
 ! Read in matrix from file specified by command line argument, which does not include .txt extension
 call get_command_argument(1,args_obj%fbase,args_obj%flength,fstat)
-! Take parameter values from command-line arguments
-call get_command_argument(2,fin,fdum,fstat)
-read(fin,*)args_obj%PROG_TYPE
-call get_command_argument(3,fin,fdum,fstat)
-read(fin,*)args_obj%ITER_LIM
-call get_command_argument(4,fin,fdum,fstat)
-read(fin,*)args_obj%PERM_ITER_LIM
-call get_command_argument(5,fin,fdum,fstat)
-read(fin,*)args_obj%TOL_COEFF
-
 if(len_trim(args_obj%fbase) == 0) then
     write(*,'(a)')"No file specified. Exiting program."
     call exit(1)
@@ -44,12 +34,21 @@ if(fstat == -1) then
     write(*,'(a)')"Filename specified on the argument list is too long. Exiting program."
     call exit(1)
 end if
+! Take parameter values from command-line arguments
+call get_command_argument(2,fin,fdum,fstat)
+read(fin,*)args_obj%PROG_TYPE
+call get_command_argument(3,fin,fdum,fstat)
+read(fin,*)args_obj%ITER_LIM
+call get_command_argument(4,fin,fdum,fstat)
+read(fin,*)args_obj%PERM_ITER_LIM
+call get_command_argument(5,fin,fdum,fstat)
+read(fin,*)args_obj%TOL_COEFF
 
 if(my_rank == root) then
     ! Output of obtained parameters
     write(*,*)
     write(*,'(a,a,a,i2,a,i8,a,i8,a,f9.6)')"Command-line arguments: ",args_obj%fbase(1:args_obj%flength)," ",args_obj%PROG_TYPE," ",args_obj%ITER_LIM," ",args_obj%PERM_ITER_LIM," ",args_obj%TOL_COEFF
-    write(*,'(a,i8)')"Total number of MPI threads: ",p
+    write(*,'(a,i4)')"Size of communicator: ",p
     write(*,*)
 end if
 
