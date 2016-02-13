@@ -27,3 +27,17 @@ v0.2:
 - Modified margins of .tex output.
 - Decided to store current progress as v0.2 - planning to make another object to handle file output. WHAI >_>
 
+v0.3:
+- MOAR OBJECTS RAWR. Specifically for file output, called csd_write_handle.
+- Added usage of csd_write_handle to csd_solution and csd_solution_set objects.
+- Added usage of csd_write_handle to OptQC_Main.f90.
+- UGH MOAR DEBUGGING.
+- FIX GRAPHICAL ISSUES - DONE AND DONE!!!
+- Checked convention for permutations - it is the assumed U = P^T U' P. HUZZAH!
+- Compared with results from old code (MPI_COMPOSTITE/Test/) - initial decomposition results are different (with this one being more optimal). What the magical pony - clean code OP T_T
+- Verified results by multiplying out all the gates in a circuit using debugging code.
+- Modified output precision for gate parameter values.
+- Note: The convention U = P^T U' P means that 1st matrix in array is the last to be applied. Hence, order of output in csd_solution_set_write_circuit has been reversed.
+- Fixed unusage of sgn parameter by introducing the neg logical element in the csd_solution, csd_solution_set, csd_generator and csd_write_handle objects.
+- TODO: Paradoxial relationship between visual prettiness and accuracy - currently about 10^-5 error for 4 decimal places. Leaving it for now.
+- Decided to store current progress as v0.3 - need to add the qubit permutation nonsense in the next version.

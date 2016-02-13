@@ -4,7 +4,7 @@ use csd_real
 use mpi
 
 implicit none
-character(len=128) :: fbase, finput, fhist, fperm, ftex, fin, fmat
+character(len=128) :: fbase, finput, fhist, fperm, ftex
 integer :: flength
 integer :: N, M, d, i, j, Msq
 integer :: ITER_LIM
@@ -30,6 +30,7 @@ double precision :: c_start, c_end, e_time
 ! Objects
 type(csd_generator) :: csdgen_obj
 type(csd_solution_set) :: csdss_Xinit, csdss_Xcur, csdss_Xnew, csdss_Xsol
+type(csd_write_handle) :: csdwh_obj
 
 ! Choose root process as 0
 root = 0
@@ -103,7 +104,8 @@ call csdss_Xinit%constructor(3,N,M)
 call csdss_Xcur%constructor(3,N,M)
 call csdss_Xnew%constructor(3,N,M)
 call csdss_Xsol%constructor(3,N,M)
-! Convention: U = P^T U' P - PLEASE CHECK THIS
+call csdwh_obj%constructor(N)
+! Convention: U = P^T U' P - CHECKED AND VERIFIED
 call permlisttomatrixtr(M,Perm,csdss_Xinit%arr(1)%X)
 csdss_Xinit%arr(2)%X = X
 call permlisttomatrix(M,Perm,csdss_Xinit%arr(3)%X)
@@ -112,8 +114,6 @@ call csdss_Xinit%arr(2)%run_csdr(csdgen_obj)
 csdss_Xinit%csd_ss_ct = csdss_Xinit%arr(2)%csd_ct
 csdss_Xinit%csdr_ss_ct = csdss_Xinit%arr(2)%csdr_ct
 ecur = csdss_Xinit%csdr_ss_ct
-
-!goto 3010
 
 ! Initialize solution to initial setup
 call csdss_Xcur%copy(csdss_Xinit)
@@ -183,6 +183,8 @@ if(my_rank == m_pos-1) then
     write(fhist,'(a,a)')fbase(1:flength),"_history.dat"
     write(fperm,'(a,a)')fbase(1:flength),"_perm.dat"
     write(ftex,'(a,a)')fbase(1:flength),"_circuit.tex"
+    ! Assign ftex to the csd_write_handle object
+    call csdwh_obj%set_file(ftex)
     ! Write the history of the algorithm to a file
     open(unit=1,file=fhist,action='write')
     do i = 0, ITER_LIM
@@ -203,7 +205,25 @@ if(my_rank == m_pos-1) then
     end do
     close(2)
     ! Write the .tex files
-    call csdss_Xsol%write_circuit(ftex)
+    call csdss_Xsol%write_circuit(csdwh_obj)
+    ! DEBUG CODE - OUTPUT GATES TO FILE FOR MATHEMATICA - ORDER REVERSAL FOR CORRECT CIRCUIT ORDER
+    open(unit=13,file="gateseq.txt",action='write')
+    do i = 1, csdss_Xsol%arr(3)%csdr_ct
+        do j = 1, N+1
+            write(13,'(a)')csdss_Xsol%arr(3)%Circuit(j,i)
+        end do
+    end do
+    do i = 1, csdss_Xsol%arr(2)%csdr_ct
+        do j = 1, N+1
+            write(13,'(a)')csdss_Xsol%arr(2)%Circuit(j,i)
+        end do
+    end do
+    do i = 1, csdss_Xsol%arr(1)%csdr_ct
+        do j = 1, N+1
+            write(13,'(a)')csdss_Xsol%arr(1)%Circuit(j,i)
+        end do
+    end do
+    close(13)
 end if
 
 call flush(6)
@@ -240,6 +260,7 @@ call csdss_Xinit%destructor()
 call csdss_Xcur%destructor()
 call csdss_Xnew%destructor()
 call csdss_Xsol%destructor()
+call csdwh_obj%destructor()
 
 end subroutine OptQC_REAL
 

@@ -13,6 +13,7 @@ type csd_solution
     double precision, allocatable :: X(:,:)
     character(len=15), allocatable :: Circuit(:,:)          ! Note: By design, this is empty unless run_csdr is called
     integer :: csd_ct, csdr_ct
+    logical :: neg                                          ! .true. if circuit represents -X, .false. otherwise
 contains
     procedure :: constructor => csd_solution_constructor
     procedure :: destructor => csd_solution_destructor
@@ -28,6 +29,7 @@ type csd_solution_set
     integer :: N, M
     type(csd_solution), allocatable :: arr(:)
     integer :: csd_ss_ct, csdr_ss_ct
+    logical :: neg
 contains
     procedure :: constructor => csd_solution_set_constructor
     procedure :: destructor => csd_solution_set_destructor
@@ -48,6 +50,7 @@ type csd_generator
     double precision, pointer :: X(:,:)                     ! Intent: In
     character(len=15), pointer :: Circuit(:,:)              ! Intent: Out
     integer, pointer :: csd_ct, csdr_ct                     ! Intent: Out
+    logical, pointer :: neg                                 ! Intent: Out
     ! Workspace arrays
     ! CYGR_CUTGATE:
     integer, allocatable :: Z_array(:,:), PI_array(:,:), GATEY_sign(:)
@@ -79,6 +82,40 @@ contains
     procedure :: ReduceGroups => csd_generator_ReduceGroups
 end type csd_generator
 
+type csd_write_handle
+    ! Fixed global parameters
+    integer :: NVAR
+    integer :: ROWMAX, COLMAX, SECMAX
+    ! File stream details
+    character(len=128) :: fname
+    integer :: FN
+    ! Pointer to circuit
+    character(len=15), pointer :: Circuit(:,:)
+    integer :: nct                                          ! Length of circuit
+    ! Output variables
+    character(len=256), allocatable :: buffer(:)
+    integer :: cpos
+    integer :: buffer_num, buffer_col
+    integer :: page_num
+    logical :: env_open
+    logical :: neg
+    logical :: seperator
+contains
+    procedure :: constructor => csd_write_handle_constructor
+    procedure :: destructor => csd_write_handle_destructor
+    procedure :: clean => csd_write_handle_clean
+    procedure :: set_file => csd_write_handle_set_file
+    procedure :: assign_target => csd_write_handle_assign_target
+    procedure :: nullify_target => csd_write_handle_nullify_target
+    procedure :: preamble => csd_write_handle_preamble
+    procedure :: postamble => csd_write_handle_postamble
+    procedure :: insert_neg => csd_write_handle_insert_neg
+    procedure :: insert_seperator => csd_write_handle_insert_seperator
+    procedure :: push_back => csd_write_handle_push_back
+    procedure :: write_buffer => csd_write_handle_write_buffer
+    procedure :: write_circuit => csd_write_handle_write_circuit
+end type csd_write_handle
+
 contains
 
 subroutine csd_solution_constructor(this,N,M)
@@ -95,6 +132,7 @@ allocate(this%X(M,M))
 allocate(this%Circuit(N+1,M*M/2+M))
 this%X = 0.0d0
 this%Circuit = ""
+this%neg = .false.
 
 end subroutine csd_solution_constructor
 
@@ -116,6 +154,7 @@ class(csd_solution) :: this
 this%Circuit = ""
 this%csd_ct = 0
 this%csdr_ct = 0
+this%neg = .false.
 
 end subroutine csd_solution_clean
 
@@ -129,6 +168,7 @@ this%X = source%X
 this%Circuit = source%Circuit
 this%csd_ct = source%csd_ct
 this%csdr_ct = source%csdr_ct
+this%neg = source%neg
 
 end subroutine csd_solution_copy
 
@@ -159,82 +199,23 @@ call generator%nullify_target()
 
 end subroutine csd_solution_run_csdr
 
-subroutine csd_solution_write_circuit(this,fout)
+subroutine csd_solution_write_circuit(this,wh)
 
 implicit none
 class(csd_solution) :: this
-character(len=128) :: fout
-
-integer :: nvar, nlfull, colnum, colsum, partmax, partct, part, row, col
+type(csd_write_handle) :: wh
 
 if(this%csdr_ct == 0) then
     write(*,'(a)')"Attempted to output empty circuit to .tex file - request ignored."
     return
 end if
-nvar = this%N + 1                               ! Requires N+1 rows, due to the last line being reserved for parameter values
-partmax = 36 / nvar                             ! Maximum number of rows on one page set as 36, division gives the maximum number of circuit lines
-open(unit=1,file=fout,status='replace')
-write(1,'(a)') '\documentclass{amsart}'
-write(1,'(a)') '\usepackage[matrix,frame,arrow]{xypic}'
-write(1,'(a)') '\usepackage[cm]{fullpage}'
-write(1,'(a)') '\input{Qcircuit}'
-write(1,*)
-write(1,'(a)') '\begin{document}'
-colnum = 10                                     ! This determines the maximum number of columns in a line
-colsum = this%csdr_ct                           ! Total number of columns - obtained from decomposition results
-partct = 0
-nlfull = colsum / colnum                        ! Number of full lines
-do part = 1, nlfull                             ! Main looping section - colsum/colnum rounds down
-    ! Start of circuit (or new page)
-    if(partct == 0) then
-        write(1,*)
-        write(1,'(a)') '\['
-        write(1,'(a)') '\Qcircuit @C=2.0em @R=0.1em @!R{'
-    end if
-	do row = 1,nvar
-		do col = (part-1)*colnum+1,part*colnum
-			write(1,303,advance='no') this%Circuit(row,col)
-		end do
-		if (row /= nvar) then
-			write(1,303,advance='no') '& \qw \\'
-		else
-			write(1,303,advance='no') '&     \\'
-		end if
-		write(1,*)
-	end do
-	partct = partct + 1
-	! If maximum number of lines is reached, skip to next page
-	if(partct == partmax) then
-        write(1,'(a)') '}'
-        write(1,'(a)') '\]'
-        partct = 0
-    end if
-end do
-part = nlfull
-if(part*colnum+1 <= colsum) then
-    if(partct == 0) then
-        write(1,*)
-        write(1,'(a)') '\['
-        write(1,'(a)') '\Qcircuit @C=2.0em @R=0.1em @!R{'
-    end if
-    do row = 1,nvar
-        do col = part*colnum+1,colsum
-            write(1,303,advance='no') this%Circuit(row,col)
-        end do
-        if (row /= nvar) then
-            write(1,303,advance='no') '& \qw \\'
-        else
-            write(1,303,advance='no') '&     \\'
-        end if
-        write(1,*)
-    end do
-end if
-write(1,'(a)') '}'
-write(1,'(a)') '\]'
-write(1,*)
-write(1,'(a)') '\end{document}'
-CLOSE(1)
-303 format(A15)
+call wh%clean()
+call wh%preamble()
+if(this%neg == .true.) call wh%insert_neg()
+call wh%assign_target(this)
+call wh%write_circuit()
+call wh%nullify_target()
+call wh%postamble()
 
 end subroutine csd_solution_write_circuit
 
@@ -280,6 +261,7 @@ class(csd_solution_set) :: this
 ! Note: Cleaning of csd_solution objects is done individually in their call to run_csd or run_csdr
 this%csd_ss_ct = 0
 this%csdr_ss_ct = 0
+this%neg = .false.
 
 end subroutine csd_solution_set_clean
 
@@ -296,6 +278,7 @@ do i = 1, this%nset
 end do
 this%csd_ss_ct = source%csd_ss_ct
 this%csdr_ss_ct = source%csdr_ss_ct
+this%neg = source%neg
 
 end subroutine csd_solution_set_copy
 
@@ -311,6 +294,7 @@ call this%clean()
 do i = 1, this%nset
     call this%arr(i)%run_csd(generator)
     this%csd_ss_ct = this%csd_ss_ct + this%arr(i)%csd_ct
+    if(this%arr(i)%neg == .true.) this%neg = .not.this%neg
 end do
 
 end subroutine csd_solution_set_run_csd
@@ -328,20 +312,32 @@ do i = 1, this%nset
     call this%arr(i)%run_csdr(generator)
     this%csd_ss_ct = this%csd_ss_ct + this%arr(i)%csd_ct
     this%csdr_ss_ct = this%csdr_ss_ct + this%arr(i)%csdr_ct
+    if(this%arr(i)%neg == .true.) this%neg = .not.this%neg
 end do
 
 end subroutine csd_solution_set_run_csdr
 
-subroutine csd_solution_set_write_circuit(this,fout)
+subroutine csd_solution_set_write_circuit(this,wh)
 
 implicit none
 class(csd_solution_set) :: this
-character(len=128) :: fout
+type(csd_write_handle) :: wh
 
-! TODO: OVERHAUL EVERYTHING RAWR
-if(this%nset == 3) then
-    call this%arr(2)%write_circuit(fout)
-end if
+integer :: i
+
+call wh%clean()
+call wh%preamble()
+if(this%neg == .true.) call wh%insert_neg()
+! Note: Order reversal in circuit, since U = U_1 U_2 .. U_N means that U_N is applied first
+do i = this%nset, 1, -1
+    call wh%assign_target(this%arr(i))
+    call wh%write_circuit()
+    if(i /= 1) then
+        call wh%insert_seperator()
+    end if
+    call wh%nullify_target()
+end do
+call wh%postamble()
 
 end subroutine csd_solution_set_write_circuit
 
@@ -451,6 +447,8 @@ this%csd_ct => csd_ss%csd_ct
 this%csd_ct = 0
 this%csdr_ct => csd_ss%csdr_ct
 this%csdr_ct = 0
+this%neg => csd_ss%neg
+this%neg = .false.
 
 end subroutine csd_generator_assign_target
 
@@ -463,6 +461,7 @@ nullify(this%X)
 nullify(this%Circuit)
 nullify(this%csd_ct)
 nullify(this%csdr_ct)
+nullify(this%neg)
 
 end subroutine csd_generator_nullify_target
 
@@ -660,6 +659,9 @@ do i = 1,N-1
 end do
 if (this%PI_array(1,1) == -1) then
 	this%PI_array(:,1) = -this%PI_array(:,1)
+	this%neg = .true.
+else
+    this%neg = .false.
 end if
 
 do i = 1,N
@@ -712,7 +714,7 @@ integer :: IsEmpty
 ! Includes update of the count of the reduced number of gates at the end
 N = this%N
 ct = 0
-this%Circuit = ''
+this%Circuit = ""
 ! Form the circuit for the reduced solution.
 ! GATEPI
 ct = 0
@@ -802,7 +804,7 @@ do i = this%M-1, 1, -1
         end do
     end do
 end do
-302 format('& ',F8.4)
+302 format('& ',F7.4)
 this%csdr_ct = ct
 
 end subroutine csd_generator_ReduceSolution
@@ -879,5 +881,251 @@ end do
 return
 
 end subroutine csd_generator_ReduceGroups
+
+subroutine csd_write_handle_constructor(this,N)
+
+implicit none
+class(csd_write_handle) :: this
+integer :: N
+
+this%NVAR = N+1
+this%fname = ""
+this%FN = -1
+this%ROWMAX = 36
+this%COLMAX = 10
+this%SECMAX = 36 / this%NVAR
+allocate(this%buffer(this%NVAR))
+call this%clean()
+
+end subroutine csd_write_handle_constructor
+
+subroutine csd_write_handle_destructor(this)
+
+implicit none
+class(csd_write_handle) :: this
+
+deallocate(this%buffer)
+
+end subroutine csd_write_handle_destructor
+
+subroutine csd_write_handle_clean(this)
+
+implicit none
+class(csd_write_handle) :: this
+
+! Does not reset the file assigned
+this%buffer = ""
+this%cpos = 0
+this%buffer_num = 0
+this%buffer_col = 0
+this%page_num = 0
+this%env_open = .false.
+this%neg = .false.
+this%seperator = .false.
+
+end subroutine csd_write_handle_clean
+
+subroutine csd_write_handle_set_file(this,fname)
+
+implicit none
+class(csd_write_handle) :: this
+character(len=128) :: fname
+
+integer :: RINT
+
+this%fname = fname
+! Select a random unit number (10 or above)
+this%FN = RINT(1000)
+do while (this%FN < 10)
+    this%FN = RINT(1000)
+end do
+
+end subroutine csd_write_handle_set_file
+
+subroutine csd_write_handle_assign_target(this,csd_sol)
+
+implicit none
+class(csd_write_handle) :: this
+type(csd_solution), target :: csd_sol
+
+this%Circuit => csd_sol%Circuit
+this%nct = csd_sol%csdr_ct
+
+end subroutine csd_write_handle_assign_target
+
+subroutine csd_write_handle_nullify_target(this)
+
+implicit none
+class(csd_write_handle) :: this
+
+nullify(this%Circuit)
+this%nct = 0
+
+end subroutine csd_write_handle_nullify_target
+
+subroutine csd_write_handle_preamble(this)
+
+implicit none
+class(csd_write_handle) :: this
+
+open(unit=this%FN,file=this%fname,status='replace')
+if(this%FN /= -1) then
+    write(this%FN,'(a)')"\documentclass{article}"
+    write(this%FN,'(a)')"\usepackage[cm]{fullpage}"
+    write(this%FN,'(a)')"\input{Qcircuit}"
+    write(this%FN,'(a)')""
+    write(this%FN,'(a)')"\begin{document}"
+    write(this%FN,'(a)')""
+    write(this%FN,'(a)')"\Qcircuit @C=2.0em @R=0.1em @!R{"
+    this%env_open = .true.
+else
+    write(*,'(a)')"Attempted to write preamble to unopened .tex file. Exiting program."
+    stop
+end if
+
+end subroutine csd_write_handle_preamble
+
+subroutine csd_write_handle_postamble(this)
+
+implicit none
+class(csd_write_handle) :: this
+
+if(this%FN /= -1) then
+    if(this%buffer_col > 0) then
+        call this%write_buffer()
+    end if
+    if(this%env_open == .true.) then
+        write(this%FN,'(a)')"}"
+    end if
+    write(this%FN,'(a)')""
+    write(this%FN,'(a)')"\end{document}"
+else
+    write(*,'(a)')"Attempted to write postamble to unopened .tex file. Exiting program."
+    stop
+end if
+close(this%FN)
+
+end subroutine csd_write_handle_postamble
+
+subroutine csd_write_handle_insert_neg(this)
+
+implicit none
+class(csd_write_handle) :: this
+
+! UGH inelegant fudge into push_back subroutine.
+this%neg = .true.
+call this%push_back()
+
+end subroutine csd_write_handle_insert_neg
+
+subroutine csd_write_handle_insert_seperator(this)
+
+implicit none
+class(csd_write_handle) :: this
+
+integer :: row
+
+! Let's try classifying seperators as not counting towards the buffer_col count.
+! It shouldn't take up that much (figure) space right....?
+! WRONG - it does; introduced a new logical variable seperator to take care of this...
+this%seperator = .true.
+call this%push_back()
+
+end subroutine csd_write_handle_insert_seperator
+
+subroutine csd_write_handle_push_back(this)
+
+implicit none
+class(csd_write_handle) :: this
+
+integer :: row
+
+! Check if buffer is full first
+if(this%buffer_col == this%COLMAX) then
+    call this%write_buffer()
+    this%buffer_col = 0
+    this%buffer_num = this%buffer_num + 1
+    ! Close current page if maximum number of sections has been reached
+    if(this%buffer_num == this%SECMAX) then
+        write(this%FN,'(a)')'}'
+        this%env_open = .false.
+        this%buffer_num = 0
+        this%page_num = this%page_num + 1
+    end if
+end if
+if(this%seperator == .true.) then
+    do row = 1, this%NVAR
+        if(row /= this%NVAR) then
+            this%buffer(row) = trim(adjustl(this%buffer(row))) // " & | \qw"
+        else
+            this%buffer(row) = trim(adjustl(this%buffer(row))) // " & |"
+        end if
+    end do
+    this%seperator = .false.
+else if(this%neg == .true.) then
+    this%buffer(1) = trim(adjustl(this%buffer(1))) // " & \gate{-I_2}"
+    do row = 2, this%NVAR
+        if(row /= this%NVAR) then
+            this%buffer(row) = trim(adjustl(this%buffer(row))) // " & \qw"
+        else
+            this%buffer(row) = trim(adjustl(this%buffer(row))) // " & "
+        end if
+    end do
+    this%neg = .false.
+else
+    do row = 1, this%NVAR
+        this%buffer(row) = trim(adjustl(this%buffer(row))) // " " // trim(adjustl(this%Circuit(row,this%cpos)))
+    end do
+end if
+this%buffer_col = this%buffer_col + 1
+
+end subroutine csd_write_handle_push_back
+
+subroutine csd_write_handle_write_buffer(this)
+
+implicit none
+class(csd_write_handle) :: this
+
+integer :: row
+
+! Check to see if the circuit envionment is presently open - opens one if not
+if(this%env_open == .false.) then
+    ! Forces page break after each Qcircuit - assume that preamble has been run correctly
+    write(this%FN,'(a)')""
+    write(this%FN,'(a)')"\clearpage"
+    write(this%FN,'(a)')""
+    write(this%FN,'(a)')'\Qcircuit @C=2.0em @R=0.1em @!R{'
+    this%env_open = .true.
+end if
+! Writes termination characters to end of buffer
+do row = 1, this%NVAR
+    if(row /= this%NVAR) then
+        this%buffer(row) = trim(adjustl(this%buffer(row))) // ' & \qw \\'
+    else
+        this%buffer(row) = trim(adjustl(this%buffer(row))) // ' & \\'
+    end if
+end do
+! Write buffer to file
+do row = 1, this%NVAR
+    write(this%FN,'(a)')trim(adjustl(this%buffer(row)))
+end do
+! Empty buffer
+this%buffer = ""
+
+end subroutine csd_write_handle_write_buffer
+
+subroutine csd_write_handle_write_circuit(this)
+
+implicit none
+class(csd_write_handle) :: this
+
+integer :: idx
+
+do idx = 1, this%nct
+    this%cpos = idx
+    call this%push_back()
+end do
+
+end subroutine csd_write_handle_write_circuit
 
 end module csd_real
