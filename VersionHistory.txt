@@ -15,6 +15,24 @@ v1.01:
 - Verified results against original program by checking the raw decomposition (without optimization), which matches. Numbers for optimized result looks about right - haven't checked validity, but should be.
 - Decided to store current progress as v1.01 - next up, changing optimization procedure.
 
+v1.1:
+- Added the function binstr_getdecrep to compute the decimal representation of the bitstring object.
+- Wrapped contnt of OptQC_Perm in a module because reasons.
+- Reshuffled some code between the main files with the bridge file.
+- Wrote up subroutines to generate random permutation gates and to find the corresponding permutation representation - tested and verified.
+- TO NOTE: I think the convention is for (1)-(5), it is Q^T P^T U' P Q - refer to csd_solution_set_write_circuit() documentation
+- Fixed small bug in qperm_reverse() subroutine - j index was meant to go up to N+1 instead of N
+- WAIT WHAT WEIRD BUG WITH OUTPUTING FILE NAME - PLEASE FIX OR CONFIRM - CONFIRMED TO EXIST ONLY IN SUBLIME TEXT DISPLAY???
+- Finished writing code that replaces neighbourhood operator with a new one that builds up P using conditional NOT gates - to be played with.
+- Found major bug in edited csd_generator_reducesolution() subroutine introduced by replacing len=20 character arrays with the dynamic binstr object - causes floating lines, incorrect conditionals and other bad bad things.
+- Fixed major bug by spending ages figuring out old code - issue was with indexing in string vs the circuit convention.
+- Verified results for the S8 graph.
+- NOTE (COURTESY OF ERNEST): PUT PONIES IN AT SOME POINT.
+- Tested a variant of the generategate() subroutine which limits NOT gates to 1 per gate - performance seems to be slightly worse, but merits further investigation.
+- Results unanimously agree that the results generated in this fashion is better than the standard neighbourhood operator used in v0.*, but...
+- ...plots of history indicate a Nike (just do it) trend - the history plot looks like a tick, i.e. drop to the optimal solution, followed by a linear increase (rate presumably being the threshold maximum). Probably because the new neighbourhood operator allows for slower increases? Either way, it is a problem.
+- Decided to store current progress as v1.02 - next up, looking into either (a) going back to a standard simulated annealing algorithm, or (b) modifying the threshold based acceptance algorithm to force decay.
+
 ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
 ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
 

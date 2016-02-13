@@ -1,6 +1,7 @@
 subroutine OptQC_CPLX(root,my_rank,p,args_obj)
 
 use common_module
+use csd_perm
 use csd_tools
 use mpi
 
@@ -58,15 +59,15 @@ if(my_rank == root) then
     allocate(X_MPI_temp(Msq))
     X = cmplx(0.0d0)
     do i = 1, d
-    	do j = 1, d
-    		read(1,*)in_1,in_2
-    		X(i,j) = cmplx(in_1,in_2)
-    	end do
+        do j = 1, d
+            read(1,*)in_1,in_2
+            X(i,j) = cmplx(in_1,in_2)
+        end do
     end do
     if(M /= d) then
-    	do i = d+1, M
-    		X(i,i) = cmplx(1.0d0,0.0d0)
-    	end do
+        do i = d+1, M
+            X(i,i) = cmplx(1.0d0,0.0d0)
+        end do
     end if
     close(1)
     MPI_int_buffer(1) = N
@@ -87,6 +88,9 @@ call MPI_Bcast(X_MPI_temp,Msq,MPI_DOUBLE_COMPLEX,root,MPI_COMM_WORLD,ierr)
 if(my_rank /= root) then
     call Box_CPLX(M,X_MPI_temp,X)
 end if
+
+! Set up modules
+call initialize_csd_perm(N,M)
 
 ! Start timing here so as to include time spent choosing and decomposing the initial permutation
 c_start = MPI_Wtime()
@@ -131,6 +135,8 @@ type_spec(3) = 1
 call csdgen_obj%constructor(N,M,1,index_level,index_pair,COEFF)
 call csdss_Xinit%constructor(N,M,nset,type_spec)
 csdss_Xinit%arr(1)%toggle_csd = .false.
+csdss_Xinit%arr(2)%toggle_csd = .false.
+csdss_Xinit%arr(4)%toggle_csd = .false.
 csdss_Xinit%arr(5)%toggle_csd = .false.
 call csdss_Xcur%constructor(N,M,nset,type_spec)
 call csdss_Xnew%constructor(N,M,nset,type_spec)
@@ -176,7 +182,7 @@ idx_sol = 0
 
 do i = 1, args_obj%ITER_LIM
     Perm_new = Perm
-    call NeighbourhoodOpt(M,csdss_Xcur,csdss_Xnew,Perm_new)
+    call NeighbourhoodOpt(N,M,csdss_Xinit,csdss_Xcur,csdss_Xnew,Perm_new)
     call csdss_Xnew%run_csdr(csdgen_obj)
     enew = csdss_Xnew%csdr_ss_ct
     delta = enew - ecur
@@ -271,6 +277,9 @@ call flush(6)
 if(my_rank /= p-1) then
     call MPI_Send(MPI_int_buffer,1,MPI_INTEGER,my_rank+1,101,MPI_COMM_WORLD,ierr)
 end if
+
+! Finalize modules
+call finalize_csd_perm()
 
 ! Free up memory
 deallocate(MPI_int_buffer)

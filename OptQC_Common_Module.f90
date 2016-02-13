@@ -14,6 +14,7 @@ end type cstr
 type, extends (cstr) :: binstr
 contains
 	procedure :: getbinrep => binstr_getbinrep
+    procedure :: getdecrep => binstr_getdecrep
     procedure :: isempty => binstr_isempty
     procedure :: qsimilar => binstr_qsimilar
 end type binstr
@@ -91,6 +92,10 @@ class(cstr) :: this, targ
 integer :: i, mlen
 
 mlen = min(this%len,targ%len)
+if(this%len == 0) then
+    mlen = targ%len
+    call this%constructor(mlen)
+end if
 this%str(1:mlen) = targ%str(1:mlen)
 if(mlen < this%len) then
     this%str(mlen+1:this%len) = ''
@@ -113,6 +118,24 @@ do i = 1, this%len
 end do
 
 end subroutine binstr_getbinrep
+
+function binstr_getdecrep(this)
+
+implicit none
+class(binstr) :: this
+integer :: binstr_getdecrep
+integer :: i, temp
+
+binstr_getdecrep = 0
+temp = 1
+do i = this%len, 1, -1
+    if(this%str(i) == '1') then
+        binstr_getdecrep = binstr_getdecrep + temp
+    end if
+    temp = temp * 2
+end do
+
+end function binstr_getdecrep
 
 function binstr_isempty(this,lp,rp)
 

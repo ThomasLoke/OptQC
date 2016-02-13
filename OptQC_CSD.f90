@@ -163,15 +163,18 @@ this%M = M
 this%obj_type = obj_type
 this%csd_ct = 0
 this%csdr_ct = 0
+! Note: Edited circuit allocation size to be equal for both types
+! Warning: Hardcoded - assumed in OptQC_Perm.f90 as well
 if(obj_type == 0) then
     allocate(this%X(M,M))
     this%X = 0.0d0
-    allocate(this%Circuit(N+1,M*M/2+M))
+    !allocate(this%Circuit(N+1,M*M/2+M))
 else
     allocate(this%Xc(M,M))
     this%Xc = C_ZERO
-    allocate(this%Circuit(N+1,M*M+1))
+    !allocate(this%Circuit(N+1,M*M+1))
 end if
+allocate(this%Circuit(N+1,M*M+1))
 this%Circuit = ""
 this%neg = .false.
 this%toggle_csd = .true.
@@ -1095,7 +1098,7 @@ if(this%targ_type == 0) then
     ! GATEPI
     ct = 0
     do i = 1, N
-        lb = N+1-i
+        lb = N+1-i ! Equivalent to workstr%len+2-i
         call this%GroupGates(2**(i-1),this%GATEPI(:,i),-1.0d0)
         call this%ReduceGroups()
         ! There should only be one type, that is, Type_Param(1) = -1.0d0
@@ -1110,7 +1113,7 @@ if(this%targ_type == 0) then
             if(i > 1) then
                 call workstr%copy(this%C_Num_Bin(1,k))
                 do row = 1, i-1
-                    p = row
+                    p = lb-1+row ! Equivalent to N-i+row
                     if(workstr%str(p)=='0') then
                         this%Circuit(row,ct) = '& \ctrlo{1}'
                     else if(workstr%str(p)=='1') then

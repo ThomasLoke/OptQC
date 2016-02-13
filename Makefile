@@ -17,11 +17,12 @@ $(progname): $(objects)
 common_module.mod: OptQC_Common_Module.o
 OptQC_Bridge.o: common_module.mod
 OptQC_CSD.o: arrays_real.mod arrays_cplx.mod common_module.mod
-OptQC_Main.o: common_module.mod csd_tools.mod
+OptQC_Main.o: common_module.mod csd_tools.mod csd_perm.mod
 OptQC_Perm.o: csd_tools.mod
+csd_perm.mod: OptQC_Perm.o
 csd_tools.mod: OptQC_CSD.o
 arrays_real.mod: OptQC_WKVar.o
-OptQC_CPLX_Main.o: common_module.mod csd_tools.mod
+OptQC_CPLX_Main.o: common_module.mod csd_tools.mod csd_perm.mod
 arrays_cplx.mod: OptQC_CPLX_WKVar.o
 
 #Cleaning files

@@ -1,6 +1,7 @@
 subroutine OptQC_REAL(root,my_rank,p,args_obj)
 
 use common_module
+use csd_perm
 use csd_tools
 use mpi
 
@@ -37,8 +38,6 @@ type(csd_generator) :: csdgen_obj
 type(csd_solution_set) :: csdss_Xinit, csdss_Xcur, csdss_Xnew, csdss_Xsol
 type(csd_write_handle) :: csdwh_obj
 
-! Initialize a random seed for the RNG
-call init_random_seed(my_rank)
 ! Set the number of matrices to be 5
 nset = 5
 ! Allocate integer buffer
@@ -86,6 +85,9 @@ if(my_rank /= root) then
     call Box(M,X_MPI_temp,X)
 end if
 
+! Set up modules
+call initialize_csd_perm(N,M)
+
 ! Start timing here so as to include time spent choosing and decomposing the initial permutation
 c_start = MPI_Wtime()
 ! Allocate record arrays
@@ -127,6 +129,8 @@ end do
 call csdgen_obj%constructor(N,M,0,index_level,index_pair,COEFF)
 call csdss_Xinit%constructor(N,M,nset,type_spec)
 csdss_Xinit%arr(1)%toggle_csd = .false.
+csdss_Xinit%arr(2)%toggle_csd = .false.
+csdss_Xinit%arr(4)%toggle_csd = .false.
 csdss_Xinit%arr(5)%toggle_csd = .false.
 call csdss_Xcur%constructor(N,M,nset,type_spec)
 call csdss_Xnew%constructor(N,M,nset,type_spec)
@@ -172,7 +176,7 @@ idx_sol = 0
 
 do i = 1, args_obj%ITER_LIM
     Perm_new = Perm
-    call NeighbourhoodOpt(M,csdss_Xcur,csdss_Xnew,Perm_new)
+    call NeighbourhoodOpt(N,M,csdss_Xinit,csdss_Xcur,csdss_Xnew,Perm_new)
     call csdss_Xnew%run_csdr(csdgen_obj)
     enew = csdss_Xnew%csdr_ss_ct
     delta = enew - ecur
@@ -267,6 +271,9 @@ call flush(6)
 if(my_rank /= p-1) then
     call MPI_Send(MPI_int_buffer,1,MPI_INTEGER,my_rank+1,101,MPI_COMM_WORLD,ierr)
 end if
+
+! Finalize modules
+call finalize_csd_perm()
 
 ! Free up memory
 deallocate(MPI_int_buffer)
