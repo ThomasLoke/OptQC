@@ -1,0 +1,11 @@
+Version History for OptQC
+
+v0.1:
+- Rewrote Makefile using automatic variables and pattern matching for conciseness.
+- Recoding of MPI_COMPOSITE/v1.1 for more streamlined code (possibly at small expense of performance).
+- Removed CPLX implementation for the moment, focus on overhauling REAL implementation first.
+- Removed calculation of modified matrix via total Hamming distance minimization - it really wasn't helping (when permutation cost is included).
+- Made new file OptQC_CSD - with the intention of coding the CSD process as an object.
+- Absorbed functionality from CYGR_CSD.f90, CYGR_BLKCSD.f90, CYGR_CUTGATE.f90, OptQC_Output.f90 and some of CYGR_WRITEF.f90, OptQC_Common.f90 and OptQC_GateCount.f90 into OptQC_CSD.f90.
+- Decided to store current progress as v0.1 - especially makefile changes. Object-oriented approach to be expanded upon and to be used in the coming versions.
+- Reminder: Restore documentation for CSD functions? Meh, maybe not, or maybe later.
