@@ -383,18 +383,27 @@ implicit none
 class(csd_solution_set) :: this
 type(csd_write_handle) :: wh
 
-integer :: i
+integer :: i, sepidx, sepct
 
 call wh%clean()
 call wh%preamble()
+sepidx = 0
+sepct = -1
 if(this%neg == .true.) call wh%insert_neg()
+! Precount number of seperators required
+do i = this%nset, 1, -1
+    if(this%arr(i)%csdr_ct > 0) then
+        sepct = sepct + 1
+    end if
+end do
 ! Note: Order reversal in circuit, since U = U_1 U_2 .. U_N means that U_N is applied first
 do i = this%nset, 1, -1
     if(this%arr(i)%csdr_ct > 0) then
         call wh%assign_target(this%arr(i))
         call wh%write_circuit()
-        if(i /= 1) then
+        if(sepidx < sepct) then
             call wh%insert_seperator()
+            sepidx = sepidx + 1
         end if
         call wh%nullify_target()
     end if

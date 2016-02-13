@@ -241,16 +241,14 @@ if(my_rank == m_pos-1) then
     close(1)
     ! Write the optimal permutation and the corresponding matrix to a file - PLEASE KEEP IN VIEW
     open(unit=2,file=fperm,action='write')
+    do i = 1, N
+        write(2,'(i15,a)',advance='no')QPerm(i)," "
+    end do
+    write(2,*)
     do i = 1, M
         write(2,'(i15,a)',advance='no')Perm_sol(i)," "
     end do
     write(2,*)
-    do i = 1, M
-        do j = 1, M
-            write(2,'(f15.9,a,f16.9,a)',advance='no')real(csdss_Xsol%arr(3)%Xc(i,j)),"+",aimag(csdss_Xsol%arr(3)%Xc(i,j)),"i "
-        end do
-        write(2,*)
-    end do
     close(2)
     ! Write the .tex files
     call csdss_Xsol%write_circuit(csdwh_obj)

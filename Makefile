@@ -3,7 +3,7 @@
 progname = OptQC
 compiler = mpif90
 lpflags = -L$(MKLROOT)/lib/intel64 -lmkl_intel_lp64 -lmkl_intel_thread -lmkl_core -liomp5 -lpthread -lm
-switch = -O2 -i8 -r8 -warn all -nogen-interfaces -xHost -ipo 
+switch = -O2 -warn all -nogen-interfaces -xHost -ipo 
 objects = OptQC_Bridge.o OptQC_Common.o OptQC_Common_Module.o OptQC_CSD.o OptQC_Main.o OptQC_Perm.o OptQC_WKVar.o OptQC_CPLX_Main.o
 
 #Makefile

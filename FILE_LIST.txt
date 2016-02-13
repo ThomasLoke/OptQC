@@ -1,0 +1,38 @@
+List of files for OptQC:
+
+- Source files (.f90):
+-> OptQC_Bridge.f90 - Program declaration; switches between the REAL and CPLX implementations of the program.
+-> OptQC_Common.f90 - Defines the functions common to both the REAL and CPLX implementations.
+-> OptQC_Common_Module.f90 - Defines the objects common to both the REAL and CPLX implementations.
+-> OptQC_CPLX_Main.f90 - The main function body for the CPLX implementation.
+-> OptQC_CPLX_WKVar.f90 - Defines the objects needed by the CPLX implementation.
+-> OptQC_CSD.f90 - Defines the objects required to handle the CS decomposition procedure, storage of results, and file output for both the REAL and CPLX implementation.
+-> OptQC_Main.f90 - The main function body for the REAL implementation.
+-> OptQC_Perm.f90 - Defines the functions for manipulating REAL and CPLX matrices using permutations.
+-> OptQC_REAL_WKVar.f90 - Defines the objects needed by the REAL implementation.
+circuit for a CPLX matrix.
+
+- Makefile: Specifies the compilation order for the program. Requires an environment with MPI and LAPACK libraries.
+- job.pbs: PBS script file to run the program on a multiprocessor system with several nodes.
+
+- Sample input/output files:
+-> RandReal.txt (input): An 8-by-8 random REAL matrix.
+-> RandReal_history.dat (output): Time-series of the number of gates for the process with the optimal decomposition of RandReal.txt.
+-> RandReal_perm.dat (output): Optimal permutation of RandReal.txt in list form and matrix form.
+-> RandReal_plot.tex (output): TeX file that produces the circuit diagram for the optimal decomposition of RandReal.txt.
+-> job.pbs.o1688036 (output): Terminal output for running the program on RandReal.txt.
+-> S8.txt (input): A 16-by-16 REAL matrix corresponding to the quantum walk operator on the 8-star graph.
+-> S8_history.dat (output): Time-series of the number of gates for the process with the optimal decomposition of S8.txt.
+-> S8_perm.dat (output): Optimal permutation of S8.txt in list form and matrix form.
+-> S8_plot.tex (output): TeX file that produces the circuit diagram for the optimal decomposition of S8.txt.
+-> job.pbs.o1687939 (output): Terminal output for running the program on S8.txt.
+-> 3CT3.txt (input): A 42-by-42 REAL matrix corresponding to the quantum walk operator on the 3rd generation 3-Cayley tree.
+-> 3CT3_history.dat (output): Time-series of the number of gates for the process with the optimal decomposition of 3CT3.txt.
+-> 3CT3_perm.dat (output): Optimal permutation of 3CT3.txt in list form and matrix form.
+-> 3CT3_plot.tex (output): TeX file that produces the circuit diagram for the optimal decomposition of 3CT3.txt.
+-> job.pbs.o1687632 (output): Terminal output for running the program on 3CT3.txt.
+-> Shor_alg.txt (input): A 128-by-128 CPLX matrix corresponding to the N=15, C=7 implementation of Shor's algorithm.
+-> Shor_alg_history.dat (output): Time-series of the number of gates for the process with the optimal decomposition of Shor_alg.txt.
+-> Shor_alg_perm.dat (output): Optimal permutation of Shor_alg.txt in list form and matrix form.
+-> Shor_alg_plot.tex (output): TeX file that produces the circuit diagram for the optimal decomposition of Shor_alg.txt.
+-> job.pbs.o1688080 (output): Terminal output for running the program on Shor_alg.txt.

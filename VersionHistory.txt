@@ -118,3 +118,19 @@ v0.6R (Rerolled):
 - Removed debug code outputting gateseq.txt file.
 - Removed extra output precision - was meant to help with debugging previously. 
 - Decided to store current progress as v0.6R - still need to sort out problem with undefined get_command_argument() behaviour. Or should I bother?
+
+v0.61:
+- Derived from v0.6R.
+- Small bugfix: Circuit output should no longer show an extra seperator under any circumstance - fixed by precounting seperators required.
+- Readded documentation files FILE_LIST.txt and README.txt.
+- Re-removed -i8 -r8 compile options.
+- Realized that *_perm.dat files are somewhat obsolete, since they don't include information about the qubit permutation Q. Contemplating the need to output U' at all?
+- Changed *_perm.dat output file - it now gives QPerm and Perm_sol lists only.
+- This should be the final release version, unless there's more bugfixing to be done.
+- WHAT DO YOU MEAN THERE'S A MEMORY LEAK T_T
+- TODO: Implement recording of qubit selection phase.
+- TODO: Also realized that the qubit selection phase terminates as soon as a smaller value has been found - fix maybe?
+- Traced bug to removal of -i8 option while still passing MPI_INTEGER8 around in MPI routines - default integer kind is 4, not 8.
+- Also massive Fortran lousiness in its MPI bindings - always expects arrays, since no way of obtaining the address of a scalar variable.
+- TODO: Fix above nonsense.
+- Okay so this isn't the final version - next one I promise! Decided to store current progress as v0.61 - sort out the above issues plz.
