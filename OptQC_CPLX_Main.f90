@@ -10,26 +10,25 @@ double precision :: in_1, in_2
 integer :: N, M, d, i, j, Msq
 integer :: ecur, enew, esol, idx_sol
 integer, allocatable :: history(:)
-integer :: m_pos, delta, tol, t0, e0
+integer :: hist_idx, m_pos, delta, tol, t0, e0
 ! Input arrays
 double complex, allocatable :: X(:,:)
 ! Functions
-integer :: FindMinPos, CalcTol
+integer :: FindMinPos, CalcTol, ChooseN
 ! Workspace arrays
 integer, allocatable :: index_level(:), index_pair(:,:,:)
 double precision, allocatable :: COEFF(:,:)
 integer, allocatable :: Perm(:), Perm_new(:), Perm_sol(:)
-integer, allocatable :: QPerm(:)
+integer, allocatable :: QPerm(:), QPerm_new(:)
 
 ! MPI variables
-integer(4) :: my_rank, p, ierr, root, dummy
+integer :: my_rank, p, ierr, root
+integer, allocatable :: MPI_int_buffer(:)
 double complex, allocatable :: X_MPI_temp(:)
 integer, allocatable :: r_col_array(:)
-integer(4) :: mpi_stat(MPI_STATUS_SIZE)
+integer :: mpi_stat(MPI_STATUS_SIZE)
 ! Timer variables
 double precision :: c_start, c_mid, c_end, c_time1, c_time2
-! Comparison variables for initial permutation
-integer :: einit_root
 
 ! Objects
 integer :: nset
@@ -43,6 +42,8 @@ type(csd_write_handle) :: csdwh_obj
 call init_random_seed(my_rank)
 ! Set the number of matrices to be 5
 nset = 5
+! Allocate integer buffer
+allocate(MPI_int_buffer(1))
 
 if(my_rank == root) then
     write(*,'(a)')"Performing decomposition of a complex unitary matrix."
@@ -50,11 +51,11 @@ if(my_rank == root) then
     write(*,'(a,a)')"Retrieving unitary matrix from file ",finput
     open(unit=1,file=finput,action='read')
     read(1,*)d
-    N = ceiling(log(real(d))/log(2.0))
+    N = ChooseN(d)
     M = 2**N
     Msq = M*M
     allocate(X(M,M))
-    allocate(X_MPI_temp(M*M))
+    allocate(X_MPI_temp(Msq))
     X = cmplx(0.0d0)
     do i = 1, d
     	do j = 1, d
@@ -68,13 +69,15 @@ if(my_rank == root) then
     	end do
     end if
     close(1)
+    MPI_int_buffer(1) = N
     call Flatten_CPLX(M,X,X_MPI_temp)
 end if
 
 ! Broadcast the matrix X from the root process to all the other processes
 ! Uses a flattened matrix for broadcasting, which is reshaped into a matrix.
-call MPI_Bcast(N,1,MPI_INTEGER8,root,MPI_COMM_WORLD,ierr)
+call MPI_Bcast(MPI_int_buffer,1,MPI_INTEGER,root,MPI_COMM_WORLD,ierr)
 if(my_rank /= root) then
+    N = MPI_int_buffer(1)
     M = 2**N
     Msq = M*M
     allocate(X(M,M))
@@ -88,7 +91,7 @@ end if
 ! Start timing here so as to include time spent choosing and decomposing the initial permutation
 c_start = MPI_Wtime()
 ! Allocate record arrays
-allocate(history(args_obj%ITER_LIM+1))
+allocate(history(1+args_obj%PERM_ITER_LIM+args_obj%ITER_LIM))
 allocate(r_col_array(p))
 ! Allocate input and output arrays
 allocate(index_level(M-1))
@@ -106,20 +109,17 @@ allocate(Perm(M))
 allocate(Perm_new(M))
 allocate(Perm_sol(M))
 allocate(QPerm(N))
+allocate(QPerm_new(N))
 ! Start with the identity permutation
 do i = 1, M
     Perm(i) = i
     Perm_new(i) = i
     Perm_sol(i) = i
 end do
-! Initialize root process to identity qubit permutation - all others are randomized
-if(my_rank == root) then
-    do i = 1, N
-        QPerm(i) = i
-    end do
-else
-    call qperm_generate(N,QPerm)
-end if
+! Initialize all process to the identity qubit permutation first - however, do not perform qubit permutation selection on root process
+do i = 1, N
+    QPerm(i) = i
+end do
 ! Run object constructors
 allocate(type_spec(nset))
 do i = 1, nset
@@ -140,25 +140,26 @@ call csdwh_obj%constructor(N)
 call permlisttomatrixtr(M,Perm,csdss_Xinit%arr(2)%X)                            ! P^T
 call permlisttomatrix(M,Perm,csdss_Xinit%arr(4)%X)                              ! P
 call qperm_process_CPLX(N,M,csdss_Xinit,csdgen_obj,QPerm,X,ecur)
-! Repeatedly find random permutations until the number of gates has been lowered relative to the root process (i.e. the identity permutation)
-einit_root = ecur
-call MPI_Bcast(einit_root,1,MPI_INTEGER8,root,MPI_COMM_WORLD,ierr)
+! Initialize history stuffs
+history(1) = ecur
+hist_idx = 2
+! Repeatedly find random permutations until the number of gates has been lowered relative to the original number of gates (i.e. the identity qubit permutation)
 if(my_rank /= root) then
-    j = 0
-    ! Keep testing new qubit permutations until a lower number of gates is found, or until the limit PERM_ITER_LIM has been reached,
-    ! in which case the identity permutation is used instead.
-    do while(einit_root <= ecur)
-        if(j == args_obj%PERM_ITER_LIM) then
-            do i = 1, N
-                QPerm(i) = i
-            end do
-            call qperm_process_CPLX(N,M,csdss_Xinit,csdgen_obj,QPerm,X,ecur)
-            exit
+    do i = 1, args_obj%PERM_ITER_LIM
+        call qperm_generate(N,QPerm_new)
+        call qperm_process_CPLX(N,M,csdss_Xinit,csdgen_obj,QPerm_new,X,enew)
+        if(enew <= ecur) then
+            QPerm = QPerm_new
+            ecur = enew
         end if
-        call qperm_generate(N,QPerm)
-        call qperm_process_CPLX(N,M,csdss_Xinit,csdgen_obj,QPerm,X,ecur)
-        j = j + 1
+        history(hist_idx) = ecur
+        hist_idx = hist_idx + 1
     end do
+    ! Rerun qperm_process_CPLX to ensure consistency with the optimal QPerm
+    call qperm_process_CPLX(N,M,csdss_Xinit,csdgen_obj,QPerm,X,ecur)
+else
+    hist_idx = hist_idx + args_obj%PERM_ITER_LIM
+    history(2:hist_idx) = history(1)
 end if
 c_mid = MPI_Wtime()
 
@@ -172,7 +173,6 @@ tol = CalcTol(args_obj%TOL_COEFF,ecur)
 t0 = tol
 e0 = ecur
 idx_sol = 0
-history(1) = ecur
 
 do i = 1, args_obj%ITER_LIM
     Perm_new = Perm
@@ -199,7 +199,8 @@ do i = 1, args_obj%ITER_LIM
             Perm = Perm_new
         end if
     end if
-    history(i+1) = ecur
+    history(hist_idx) = ecur
+    hist_idx = hist_idx + 1
     ! Limit the maximum tolerance to the initial tolerance value
     if(ecur < e0) then
         tol = CalcTol(args_obj%TOL_COEFF,ecur)
@@ -219,8 +220,9 @@ c_time1 = c_mid - c_start
 c_time2 = c_end - c_mid
 
 ! Write the .tex file based on the best solution
-call MPI_Allgather(esol,1,MPI_INTEGER8,r_col_array,1,MPI_INTEGER8,MPI_COMM_WORLD,ierr)
-m_pos = FindMinPos(int(p,8),r_col_array)    ! Typecast to integer(8) since p is of type integer(4)
+MPI_int_buffer(1) = esol
+call MPI_Allgather(MPI_int_buffer,1,MPI_INTEGER,r_col_array,1,MPI_INTEGER,MPI_COMM_WORLD,ierr)
+m_pos = FindMinPos(p,r_col_array)
 ! Perform I/O operations from the process with the least number of gates - eliminates need
 ! to communicate results back to the root.
 if(my_rank == m_pos-1) then
@@ -235,11 +237,12 @@ if(my_rank == m_pos-1) then
     call csdwh_obj%set_file(ftex)
     ! Write the history of the algorithm to a file
     open(unit=1,file=fhist,action='write')
-    do i = 0, args_obj%ITER_LIM
+    write(1,'(i8,a,i8)')args_obj%PERM_ITER_LIM," ",args_obj%ITER_LIM
+    do i = 0, args_obj%PERM_ITER_LIM + args_obj%ITER_LIM
         write(1,'(i8,a,i8)')i," ",history(i+1)
     end do
     close(1)
-    ! Write the optimal permutation and the corresponding matrix to a file - PLEASE KEEP IN VIEW
+    ! Write the optimal qubit permutation list q and the permutation list p
     open(unit=2,file=fperm,action='write')
     do i = 1, N
         write(2,'(i15,a)',advance='no')QPerm(i)," "
@@ -256,20 +259,21 @@ end if
 
 call flush(6)
 call MPI_Barrier(MPI_COMM_WORLD,ierr)
-dummy = 0
+MPI_int_buffer(1) = 0
 ! Assuming root = 0
 if(my_rank /= root) then
-    call MPI_Recv(dummy,1,MPI_INTEGER,my_rank-1,101,MPI_COMM_WORLD,mpi_stat,ierr)
+    call MPI_Recv(MPI_int_buffer,1,MPI_INTEGER,my_rank-1,101,MPI_COMM_WORLD,mpi_stat,ierr)
 end if
 write(*,'(a,i4,a,i8,a,i8)')"Process ",my_rank,": Initial number of gates before/after reduction = ",csdss_Xinit%csd_ss_ct,"/",csdss_Xinit%csdr_ss_ct
 write(*,'(a,i4,a,i8,a,i8,a,i8,a,i8,a,i8,a,i8,a,i8)')"Process ",my_rank,": Breakdown of solution = ",csdss_Xsol%arr(1)%csdr_ct,"/",csdss_Xsol%arr(2)%csdr_ct,"/",csdss_Xsol%arr(3)%csdr_ct,"/",csdss_Xsol%arr(4)%csdr_ct,"/",csdss_Xsol%arr(5)%csdr_ct,"/",csdss_Xsol%csdr_ss_ct," at step number ",idx_sol
 write(*,'(a,i4,a,f15.9,a,f15.9,a)')"Process ",my_rank,": Time taken = ",c_time1,"/",c_time2," seconds."
 call flush(6)
 if(my_rank /= p-1) then
-    call MPI_Send(dummy,1,MPI_INTEGER,my_rank+1,101,MPI_COMM_WORLD,ierr)
+    call MPI_Send(MPI_int_buffer,1,MPI_INTEGER,my_rank+1,101,MPI_COMM_WORLD,ierr)
 end if
 
 ! Free up memory
+deallocate(MPI_int_buffer)
 deallocate(X)
 deallocate(X_MPI_temp)
 deallocate(history)
@@ -281,6 +285,7 @@ deallocate(Perm)
 deallocate(Perm_new)
 deallocate(Perm_sol)
 deallocate(QPerm)
+deallocate(QPerm_new)
 deallocate(type_spec)
 
 ! Run object destructors

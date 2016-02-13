@@ -134,3 +134,12 @@ v0.61:
 - Also massive Fortran lousiness in its MPI bindings - always expects arrays, since no way of obtaining the address of a scalar variable.
 - TODO: Fix above nonsense.
 - Okay so this isn't the final version - next one I promise! Decided to store current progress as v0.61 - sort out the above issues plz.
+
+v0.62F (Final):
+- Introduced MPI_int_buffer for sending an integer scalar - fixed up all the MPI communication subroutine calls.
+- Settled on without the -i8 flag - so all the MPI communication uses the default MPI_INTEGER (which has KIND=4). I really don't need 64-bit integers.
+- Did I mention how much Fortran is stoooopid?
+- Implemented recording of qubit selection phase with no premarture termination.
+- Implemented careful selection (using the ChooseN function) of N after finding cases where the original code would accidentally bloat a matrix with size exactly matching a power of 2.
+- Okay this SHOULD be the final release version - pending approval by results.
+- Results approved - THIS IS THE FINA RELEASE VERSION HUZZAH!

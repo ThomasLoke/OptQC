@@ -9,7 +9,7 @@ type(prog_args) :: args_obj
 character(len=128) :: fin
 integer :: fdum, fstat
 ! MPI variables
-integer(4) :: root, my_rank, p, ierr
+integer :: root, my_rank, p, ierr
 
 ! Initialize MPI environment
 call MPI_Init(ierr)

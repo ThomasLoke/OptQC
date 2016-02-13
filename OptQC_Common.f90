@@ -242,39 +242,60 @@ end subroutine CYGC_COEFF
 
 ! Functions/Subroutines for Main
 
-function CalcTol(TOL_COEFF,ecur)
+function CalcTol(TOL_COEFF,ecur) result(res)
 
 implicit none
 double precision :: TOL_COEFF
 integer :: ecur
 
-integer :: CalcTol
+integer :: res
 
-CalcTol = ceiling(TOL_COEFF * ecur)
+res = ceiling(TOL_COEFF * ecur)
 return
 
 end function CalcTol
 
-function FindMinPos(p,arr)
+function FindMinPos(p,arr) result(res)
 
 implicit none
 integer :: p
 integer :: arr(p)
 
 integer :: i, curmin
-integer :: FindMinPos
+integer :: res
 
-FindMinPos = 1
+res = 1
 curmin = arr(1)
 do i = 2, p
     if(arr(i) < curmin) then
         curmin = arr(i)
-        FindMinPos = i
+        res = i
     end if
 end do
 return
 
 end function FindMinPos
+
+function ChooseN(d) result(res)
+
+implicit none
+integer :: d
+double precision :: temp
+integer :: nceil, nround
+
+integer :: res
+
+temp = log(real(d,8))/log(2.0d0)
+nceil = ceiling(temp)
+nround = nint(temp)
+res = nceil
+! Dangerous case
+if(d == 2**nround) then
+    res = nround
+end if
+return
+
+end function ChooseN
 
 subroutine init_random_seed(my_rank)
 
