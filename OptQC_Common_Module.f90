@@ -14,6 +14,7 @@ end type cstr
 type, extends (cstr) :: binstr
 contains
 	procedure :: getbinrep => binstr_getbinrep
+    procedure :: isempty => binstr_isempty
     procedure :: qsimilar => binstr_qsimilar
 end type binstr
 
@@ -68,6 +69,7 @@ class(cstr) :: this
 integer :: n
 
 allocate(this%str(n))
+this%str = ''
 this%len = n
 
 end subroutine cstr_constructor
@@ -112,6 +114,26 @@ end do
 
 end subroutine binstr_getbinrep
 
+function binstr_isempty(this,lp,rp)
+
+implicit none
+class(binstr) :: this
+integer :: lp, rp
+
+integer :: i
+integer :: binstr_isempty
+
+binstr_isempty = 1
+do i = lp, rp
+    if(this%str(i)=='0' .or. this%str(i)=='1') then
+        binstr_isempty = 0
+        return
+    end if
+end do
+return
+
+end function binstr_isempty
+
 function binstr_qsimilar(this,targ,e_pos)
 
 implicit none
@@ -121,12 +143,12 @@ integer :: binstr_qsimilar
 
 integer :: i, p
 
-! Automatically reject if bit stirngs are not of the same length
+binstr_qsimilar = 1
+! Automatically reject if bit strings are not of the same length
 if(this%len /= targ%len) then
     binstr_qsimilar = 0
     return
 end if
-binstr_qsimilar = 1
 ! Must differ at the specified e_pos bit
 p = e_pos
 if(this%str(p) == targ%str(p)) then
@@ -137,16 +159,16 @@ end if
 if(e_pos > 1) then
     do i = 1, e_pos-1
         p = i
-        if(this%str(p) == targ%str(p)) then
+        if(this%str(p) /= targ%str(p)) then
             binstr_qsimilar = 0
             return
         end if
     end do
 end if
-if(e_pos < this%len-1) then
-    do i = e_pos+1, this%len-1
+if(e_pos < this%len) then
+    do i = e_pos+1, this%len
         p = i
-        if(this%str(p) == targ%str(p)) then
+        if(this%str(p) /= targ%str(p)) then
             binstr_qsimilar = 0
             return
         end if

@@ -9,6 +9,11 @@ v1.0:
 - Decided to store current progress as v1.0 - integration of binstr incoming.
 
 v1.01:
+- Ported and removed QSimilar and IsEmpty functions into the binstr object.
+- Integrated usage of binstr object into CSD code.
+- Tested and WARGH SHO MUCH DEBUGGING.
+- Verified results against original program by checking the raw decomposition (without optimization), which matches. Numbers for optimized result looks about right - haven't checked validity, but should be.
+- Decided to store current progress as v1.01 - next up, changing optimization procedure.
 
 ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
 ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------

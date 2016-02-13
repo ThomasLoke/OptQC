@@ -93,7 +93,7 @@ type csd_generator
     double complex, allocatable :: Z_temp(:,:)
     double precision, allocatable :: PHASEZ(:,:), PARR(:), COEFF_WORK(:,:), IPIV(:)
     ! ReduceSolution:
-    character(len=20), allocatable :: C_Num_Bin(:,:)
+    type(binstr), allocatable :: C_Num_Bin(:,:)
     double precision, allocatable :: Type_Param(:)
     integer, allocatable :: N_Per_Type(:)
     ! Scratch variables between CYGR_CSD and CYGR_BLKCSD
@@ -416,7 +416,7 @@ class(csd_generator) :: this
 integer :: N, M, obj_type
 integer, target :: index_level(M-1), index_pair(M/2,2,N)
 double precision, target :: COEFF(M,M)
-integer :: i, Mh, size0, size1, num0, num1
+integer :: i, j, Mh, size0, size1, num0, num1
 
 Mh = M / 2
 this%N = N
@@ -503,6 +503,11 @@ if(obj_type /= 0) then
     allocate(this%IPIV(M))
 end if
 allocate(this%C_Num_Bin(Mh,Mh))
+do i = 1, Mh
+    do j = 1, Mh
+        call this%C_Num_Bin(i,j)%constructor(N-1)
+    end do
+end do
 allocate(this%Type_Param(Mh))
 allocate(this%N_Per_Type(Mh))
 this%size0 = 0
@@ -516,6 +521,7 @@ subroutine csd_generator_destructor(this)
 
 implicit none
 class(csd_generator) :: this
+integer :: i, j
 
 nullify(this%index_level)
 nullify(this%index_pair)
@@ -564,6 +570,11 @@ if(this%obj_type /= 0) then
     deallocate(this%COEFF_WORK)
     deallocate(this%IPIV)
 end if
+do i = 1, this%Mh
+    do j = 1, this%Mh
+        call this%C_Num_Bin(i,j)%destructor()
+    end do
+end do
 deallocate(this%C_Num_Bin)
 deallocate(this%Type_Param)
 deallocate(this%N_Per_Type)
@@ -1071,20 +1082,20 @@ implicit none
 class(csd_generator) :: this
 integer :: N, M, ct
 integer :: i, j, k, p, ref, row, lb, rb
-character(len=20) :: workstr
-integer :: IsEmpty
+type(binstr) :: workstr
 
 ! Includes update of the count of the reduced number of gates at the end
 N = this%N
 M = this%M
 ct = 0
 this%Circuit = ""
+call workstr%constructor(N-1)
 if(this%targ_type == 0) then
     ! Form the circuit for the reduced solution.
     ! GATEPI
     ct = 0
     do i = 1, N
-        lb = 22-i
+        lb = N+1-i
         call this%GroupGates(2**(i-1),this%GATEPI(:,i),-1.0d0)
         call this%ReduceGroups()
         ! There should only be one type, that is, Type_Param(1) = -1.0d0
@@ -1097,16 +1108,16 @@ if(this%targ_type == 0) then
         do k = 1, this%N_Per_Type(1)
             ct = ct+1
             if(i > 1) then
-                workstr = this%C_Num_Bin(1,k)
+                call workstr%copy(this%C_Num_Bin(1,k))
                 do row = 1, i-1
-                    p = 21-i+row
-                    if(workstr(p:p)=='0') then
+                    p = row
+                    if(workstr%str(p)=='0') then
                         this%Circuit(row,ct) = '& \ctrlo{1}'
-                    else if(workstr(p:p)=='1') then
+                    else if(workstr%str(p)=='1') then
                         this%Circuit(row,ct) = '& \ctrl{1}'
                     else
-                        ! Case where workstr(p:p) = '*'
-                        if(row > 1 .and. IsEmpty(workstr,lb,p-1)==0) then
+                        ! Case where workstr%str(p) = '*'
+                        if(row > 1 .and. workstr%isempty(lb,p-1)==0) then
                             this%Circuit(row,ct) = '& \qw \qwx[1]'
                         else
                             this%Circuit(row,ct) = '& \qw'
@@ -1124,8 +1135,8 @@ if(this%targ_type == 0) then
         end do
     end do
     !GATEY
-    lb = 22-N
-    rb = 20
+    lb = 1
+    rb = N-1
     do i = M-1, 1, -1
         ref = this%index_level(i)
         call this%GroupGates(this%Mh,this%GATEY(:,i),0.0d0)
@@ -1133,31 +1144,31 @@ if(this%targ_type == 0) then
         do j = 1, this%N_Type
             do k = 1, this%N_Per_Type(j)
                 ct = ct+1
-                workstr = this%C_Num_Bin(j,k)
+                call workstr%copy(this%C_Num_Bin(j,k))
                 this%Circuit(ref,ct) = '& \gate{R_y}'
                 do row = 1,N-1
-                    p = 21-N+row
+                    p = row
                     if(row < ref) then
-                        if (workstr(p:p)=='0') then
+                        if (workstr%str(p)=='0') then
                             this%Circuit(row,ct) = '& \ctrlo{1}'
-                        else if(workstr(p:p)=='1') then
+                        else if(workstr%str(p)=='1') then
                             this%Circuit(row,ct) = '& \ctrl{1}'
                         else
-                            ! Case where workstr(p:p) = '*'
-                            if(row > 1 .and. IsEmpty(workstr,lb,p-1)==0) then
+                            ! Case where workstr%str(p) = '*'
+                            if(row > 1 .and. workstr%isempty(lb,p-1)==0) then
                                 this%Circuit(row,ct) = '& \qw \qwx[1]'
                             else
                                 this%Circuit(row,ct) = '& \qw'
                             end if
                         end if
                     else
-                        if(workstr(p:p)=='0') then
+                        if(workstr%str(p)=='0') then
                             this%Circuit(row+1,ct) = '& \ctrlo{-1}'
-                        else if(workstr(p:p)=='1') then
+                        else if(workstr%str(p)=='1') then
                             this%Circuit(row+1,ct) = '& \ctrl{-1}'
                         else
-                            ! Case where workstr(p:p) = '*'
-                            if(row < N-1 .and. IsEmpty(workstr,p+1,rb)==0) then
+                            ! Case where workstr%str(p) = '*'
+                            if(row < N-1 .and. workstr%isempty(p+1,rb)==0) then
                                 this%Circuit(row+1,ct) = '& \qw \qwx[-1]'
                             else
                                 this%Circuit(row+1,ct) = '& \qw'
@@ -1180,23 +1191,23 @@ else
     end if
     ! GATEZ
     do i = 1,N
-        lb = 22-i
+        lb = N+1-i
         call this%GroupGates(2**(i-1),this%GATEZ(:,M+N-i),0.0d0)
         call this%ReduceGroups()
         do j = 1, this%N_Type
             do k = 1, this%N_Per_Type(j)
                 ct = ct+1
                 if(i > 1) then
-                    workstr = this%C_Num_Bin(j,k)
+                    call workstr%copy(this%C_Num_Bin(j,k))
                     do row = 1, i-1
-                        p = 21-i+row
-                        if(workstr(p:p)=='0') then
+                        p = row
+                        if(workstr%str(p)=='0') then
                             this%Circuit(row,ct) = '& \ctrlo{1}'
-                        else if(workstr(p:p)=='1') then
+                        else if(workstr%str(p)=='1') then
                             this%Circuit(row,ct) = '& \ctrl{1}'
                         else
-                            ! Case where workstr(p:p) = '*'
-                            if(row > 1 .and. IsEmpty(workstr,lb,p-1)==0) then
+                            ! Case where workstr%str(p) = '*'
+                            if(row > 1 .and. workstr%isempty(lb,p-1)==0) then
                                 this%Circuit(row,ct) = '& \qw \qwx[1]'
                             else
                                 this%Circuit(row,ct) = '& \qw'
@@ -1215,8 +1226,8 @@ else
         end do
     end do
     ! GATEY,GATEZ
-    lb = 22-N
-    rb = 20
+    lb = 1
+    rb = N-1
     do i = M-1, 1, -1
         ref = this%index_level(i)
         call this%GroupGates(this%Mh,this%GATEY(:,i),0.0d0)
@@ -1224,19 +1235,19 @@ else
         do j = 1, this%N_Type
             do k = 1, this%N_Per_Type(j)
                 ct = ct+1
-                workstr = this%C_Num_Bin(j,k)
+                call workstr%copy(this%C_Num_Bin(j,k))
                 this%Circuit(ref,ct) = '& \gate{R_y}'
                 do row = 1,N-1
-                    p = 21-N+row
+                    p = row
                     if(row < ref) then
                         ! Qubits before target
-                        if (workstr(p:p)=='0') then
+                        if (workstr%str(p)=='0') then
                             this%Circuit(row,ct) = '& \ctrlo{1}'
-                        else if(workstr(p:p)=='1') then
+                        else if(workstr%str(p)=='1') then
                             this%Circuit(row,ct) = '& \ctrl{1}'
                         else
-                            ! Case where workstr(p:p) = '*'
-                            if(row > 1 .and. IsEmpty(workstr,lb,p-1)==0) then
+                            ! Case where workstr%str(p) = '*'
+                            if(row > 1 .and. workstr%isempty(lb,p-1)==0) then
                                 this%Circuit(row,ct) = '& \qw \qwx[1]'
                             else
                                 this%Circuit(row,ct) = '& \qw'
@@ -1244,13 +1255,13 @@ else
                         end if
                     else
                         ! Qubits after target
-                        if(workstr(p:p)=='0') then
+                        if(workstr%str(p)=='0') then
                             this%Circuit(row+1,ct) = '& \ctrlo{-1}'
-                        else if(workstr(p:p)=='1') then
+                        else if(workstr%str(p)=='1') then
                             this%Circuit(row+1,ct) = '& \ctrl{-1}'
                         else
-                            ! Case where workstr(p:p) = '*'
-                            if(row < N-1 .and. IsEmpty(workstr,p+1,rb)==0) then
+                            ! Case where workstr%str(p) = '*'
+                            if(row < N-1 .and. workstr%isempty(p+1,rb)==0) then
                                 this%Circuit(row+1,ct) = '& \qw \qwx[-1]'
                             else
                                 this%Circuit(row+1,ct) = '& \qw'
@@ -1266,19 +1277,19 @@ else
         do j = 1, this%N_Type
             do k = 1, this%N_Per_Type(j)
                 ct = ct+1
-                workstr = this%C_Num_Bin(j,k)
+                call workstr%copy(this%C_Num_Bin(j,k))
                 this%Circuit(ref,ct) = '& \gate{R_z}'
                 do row = 1,N-1
-                    p = 21-N+row
+                    p = row
                     if(row < ref) then
                         ! Qubits before target
-                        if (workstr(p:p)=='0') then
+                        if (workstr%str(p)=='0') then
                             this%Circuit(row,ct) = '& \ctrlo{1}'
-                        else if(workstr(p:p)=='1') then
+                        else if(workstr%str(p)=='1') then
                             this%Circuit(row,ct) = '& \ctrl{1}'
                         else
-                            ! Case where workstr(p:p) = '*'
-                            if(row > 1 .and. IsEmpty(workstr,lb,p-1)==0) then
+                            ! Case where workstr%str(p) = '*'
+                            if(row > 1 .and. workstr%isempty(lb,p-1)==0) then
                                 this%Circuit(row,ct) = '& \qw \qwx[1]'
                             else
                                 this%Circuit(row,ct) = '& \qw'
@@ -1286,13 +1297,13 @@ else
                         end if
                     else
                         ! Qubits after target
-                        if(workstr(p:p)=='0') then
+                        if(workstr%str(p)=='0') then
                             this%Circuit(row+1,ct) = '& \ctrlo{-1}'
-                        else if(workstr(p:p)=='1') then
+                        else if(workstr%str(p)=='1') then
                             this%Circuit(row+1,ct) = '& \ctrl{-1}'
                         else
-                            ! Case where workstr(p:p) = '*'
-                            if(row < N-1 .and. IsEmpty(workstr,p+1,rb)==0) then
+                            ! Case where workstr%str(p) = '*'
+                            if(row < N-1 .and. workstr%isempty(p+1,rb)==0) then
                                 this%Circuit(row+1,ct) = '& \qw \qwx[-1]'
                             else
                                 this%Circuit(row+1,ct) = '& \qw'
@@ -1310,6 +1321,7 @@ end if
 ! Excessive precision for result checking - looks awful in circuit pllot
 !302 format('& ',F12.9)
 this%csdr_ct = ct
+call workstr%destructor()
 
 end subroutine csd_generator_ReduceSolution
 
@@ -1343,7 +1355,7 @@ do i = 1, extent
             match_idx = this%N_Type
         end if
         this%N_Per_Type(match_idx) = this%N_Per_Type(match_idx) + 1
-        write(this%C_Num_bin(match_idx,this%N_Per_Type(match_idx)),"(B20.20)")i-1
+        call this%C_Num_bin(match_idx,this%N_Per_Type(match_idx))%getbinrep(i-1)
         this%N_Total = this%N_Total + 1
     end if
 end do
@@ -1358,7 +1370,6 @@ class(csd_generator) :: this
 
 integer :: N
 integer :: i, j, k, row, p, limit
-integer :: QSimilar, BitPos
 
 N = this%N
 do i = 1, this%N_Type
@@ -1368,10 +1379,10 @@ do i = 1, this%N_Type
         do while(j < this%N_Per_Type(i))
             limit = this%N_Per_Type(i)
             do k = j+1, limit
-                if(QSimilar(N,this%C_Num_Bin(i,j),this%C_Num_Bin(i,k),row) == 1) then
-                    p = BitPos(N,row)
-                    this%C_Num_Bin(i,j)(p:p) = '*'
-                    if(k /= limit) this%C_Num_Bin(i,k) = this%C_Num_Bin(i,limit)
+                if(this%C_Num_Bin(i,j)%qsimilar(this%C_Num_Bin(i,k),row) == 1) then
+                    p = row
+                    this%C_Num_Bin(i,j)%str(p) = '*'
+                    if(k /= limit) call this%C_Num_Bin(i,k)%copy(this%C_Num_Bin(i,limit))
                     this%N_Per_Type(i) = limit - 1
                     this%N_Total = this%N_Total - 1
                     exit
