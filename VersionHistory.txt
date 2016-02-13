@@ -33,6 +33,17 @@ v1.1:
 - ...plots of history indicate a Nike (just do it) trend - the history plot looks like a tick, i.e. drop to the optimal solution, followed by a linear increase (rate presumably being the threshold maximum). Probably because the new neighbourhood operator allows for slower increases? Either way, it is a problem.
 - Decided to store current progress as v1.02 - next up, looking into either (a) going back to a standard simulated annealing algorithm, or (b) modifying the threshold based acceptance algorithm to force decay.
 
+v1.11:
+- Testing reveals a greater issue with the simulated annealing process - a pure random walk (i.e. threshold = 0) gives much better results. Checking to see if this is caused by the current threshold algorithm combined with the new neighbourhood operator, or if it is also an issue with the old neighbourhood operator.
+- Either way, probs have to keep in mind to (1) be suspicious when the optimal result is close to the beginning, and (2) to always check the annealing results against a pure random walk first.
+- Okay yeah gg lol - also an issue with the old neighbourhood operator (verified for the 3CT3 operator) - i.e. the simulated annealing process actually hurts more than helping.
+- Note: No code changes up to this point.
+- Noticed a performance issue with using the Fortran intrinsic random_number() for random numbers - from the documentation: 'However, the KISS generator does not create random numbers in parallel from multiple sources, but in sequence from a single source. If an OpenMP-enabled application heavily relies on random numbers, one should consider employing a dedicated parallel random number generator instead.' Hence, probably should switch it to an independent RNG for each thread.
+- Created a new source file OptQC_RNG.f90 which defines the rng module. Source code derived from 'http://jblevins.org/log/openmp'. 
+- Tested new module - adapted the seeding to generate fairly different sequences on different MPI threads. Integrated it with existing code, and edited Makefile correspondingly.
+- Results confirm that everything is fine. HUZZAH. Although noticed a slight dip in performance (maybe)? Probably negligible. 
+- Decided to store current progress as v1.11 - next up, fixing all the things.
+
 ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
 ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
 

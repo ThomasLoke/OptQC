@@ -297,23 +297,6 @@ return
 
 end function ChooseN
 
-subroutine init_random_seed(my_rank)
-
-implicit none
-integer(4) :: my_rank
-
-integer :: i, n, clock
-integer, allocatable :: seed(:)
-
-call random_seed(size = n)
-allocate(seed(n))
-call system_clock(COUNT=clock)
-seed = (clock*(my_rank+1)) + 37 * (/ (i - 1, i = 1, n) /)
-call random_seed(PUT = seed)
-deallocate(seed)
-
-end subroutine init_random_seed
-
 ! Functions/Subroutines for Perm
 
 ! Find the first position (from the left) where an element of used is zero.
@@ -334,19 +317,3 @@ end do
 return
 
 end function FindUnused
-
-! Generates a random number RINT such that 1 <= RINT <= maxv
-function RINT(maxv)
-
-implicit none
-integer :: maxv
-
-integer :: RINT
-real :: temp
-
-call random_number(temp)
-RINT = floor( maxv * temp ) + 1
-
-return
-
-end function RINT

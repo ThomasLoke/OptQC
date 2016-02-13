@@ -1,8 +1,10 @@
 module csd_perm
 
 use csd_tools
+use rng
 
 implicit none
+private :: GGset, GGsetdim, perm_temp, perm_temp2, binstr_temp
 character, allocatable :: GGset(:)
 integer :: GGsetdim
 integer, allocatable :: perm_temp(:), perm_temp2(:)
@@ -59,7 +61,6 @@ subroutine generategate(gstr)
 
 implicit none
 type(binstr) :: gstr
-integer :: RINT
 
 integer :: i, temp
 
@@ -68,7 +69,7 @@ gstr%str = ''
 ! Generate with the constraint that the number of t's is >= 1
 do while(gatecounttarg(gstr) < 1)
     do i = 1, gstr%len
-        temp = RINT(GGsetdim)
+        temp = rng_inst%rint(GGsetdim)
         gstr%str(i) = GGset(temp)
     end do
 end do
@@ -79,18 +80,17 @@ end subroutine generategate
 
 ! implicit none
 ! type(binstr) :: gstr
-! integer :: RINT
 
 ! integer :: i, temp, pos
 
 ! ! Generates a gate with only one NOT gate
 ! gstr%str = ''
-! pos = RINT(gstr%len)
+! pos = rng_inst%rint(gstr%len)
 ! gstr%str(pos) = 't'
 ! ! Generate the rest of the gate
 ! do i = 1, gstr%len
 !     if(i /= pos) then
-!         temp = RINT(GGsetdim-1)
+!         temp = rng_inst%rint(GGsetdim-1)
 !         gstr%str(i) = GGset(temp)
 !     end if
 ! end do
@@ -452,7 +452,6 @@ integer :: N
 integer :: qperm(N)
 
 integer :: i, idx, temp
-integer :: RINT
 
 ! Start with the identity qubit permutation
 do i = 1, N
@@ -460,7 +459,7 @@ do i = 1, N
 end do
 ! Choose each element randomly and fix the chosen ones from the left of the array
 do i = 1, N-1
-    idx = i-1+RINT(N-i+1)
+    idx = i-1+rng_inst%rint(N-i+1)
     if(i /= idx) then
         temp = qperm(i)
         qperm(i) = qperm(idx)

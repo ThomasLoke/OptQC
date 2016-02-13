@@ -6,4 +6,4 @@
 #PBS -j oe
 
 cd $PBS_O_WORKDIR
-mpirun ./OptQC 4CT3 0 40000 1000 0.010
+mpirun ./OptQC 4CT3 0 40000 1000 0.000

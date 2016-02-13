@@ -4,6 +4,7 @@ use common_module
 use csd_perm
 use csd_tools
 use mpi
+use rng
 
 implicit none
 character(len=128) :: finput, fhist, fperm, ftex
@@ -39,8 +40,8 @@ type(csd_generator) :: csdgen_obj
 type(csd_solution_set) :: csdss_Xinit, csdss_Xcur, csdss_Xnew, csdss_Xsol
 type(csd_write_handle) :: csdwh_obj
 
-! Initialize a random seed for the RNG
-call init_random_seed(my_rank)
+! Initialize the RNG object from the module
+call rng_inst%seed(my_rank)
 ! Set the number of matrices to be 5
 nset = 5
 ! Allocate integer buffer

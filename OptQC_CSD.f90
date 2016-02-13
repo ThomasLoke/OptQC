@@ -3,6 +3,7 @@ module csd_tools
 use arrays_real
 use arrays_cplx
 use common_module
+use rng
 
 implicit none
 
@@ -1448,13 +1449,11 @@ implicit none
 class(csd_write_handle) :: this
 character(len=128) :: fname
 
-integer :: RINT
-
 this%fname = fname
 ! Select a random unit number (10 or above)
-this%FN = RINT(1000)
+this%FN = rng_inst%rint(1000)
 do while (this%FN < 10)
-    this%FN = RINT(1000)
+    this%FN = rng_inst%rint(1000)
 end do
 
 end subroutine csd_write_handle_set_file

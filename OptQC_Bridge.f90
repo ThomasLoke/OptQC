@@ -53,9 +53,6 @@ if(my_rank == root) then
     write(*,*)
 end if
 
-! Initialize a random seed for the RNG
-call init_random_seed(my_rank)
-
 if(args_obj%PROG_TYPE == 0) then
     call OptQC_REAL(root,my_rank,p,args_obj)
 else
