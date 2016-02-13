@@ -1,33 +1,23 @@
 subroutine OptQC_REAL(my_rank,p,fbase,flength,ITER_LIM)
 
-use memwork_real
+use csd_real
 use mpi
 
 implicit none
-character(len=128) :: fbase, finput, fhist, fperm, fgate, ftex, ftexr, fin, fmat
+character(len=128) :: fbase, finput, fhist, fperm, ftex, fin, fmat
 integer :: flength
 integer :: N, M, d, i, j, Msq
-integer :: size0, size1, num0, num1
 integer :: ITER_LIM
-integer :: ecur, enew
-integer :: nP, nPT, ntot
-integer, allocatable :: history(:), history_Delta(:)
-character(len=15), allocatable :: r_Circuit(:,:)
-integer :: r_col, m_pos
-integer :: delta, tol, t0, e0
+integer :: ecur, enew, esol, idx_sol
+integer, allocatable :: history(:)
+integer :: m_pos, delta, tol, t0, e0
 ! Input arrays
 double precision, allocatable :: X(:,:)
 ! Functions
-integer :: DecomposeAndCount, DecomposeAndCountReduced, DecomposeAndCountReducedWP, FindMinPos, CalcTol
+integer :: FindMinPos, CalcTol
 ! Workspace arrays
-! Local:
+integer, allocatable :: index_level(:), index_pair(:,:,:)
 integer, allocatable :: Perm(:), Perm_new(:), Perm_sol(:)
-double precision, allocatable :: Xcur(:,:), Xnew(:,:)
-double precision, allocatable :: Pmat(:,:), PTmat(:,:)
-
-! Storage of best solution
-integer :: esol, idx_sol
-double precision, allocatable :: X_sol(:,:)
 
 ! MPI variables
 integer(4) :: my_rank, p, ierr, root, dummy
@@ -36,6 +26,10 @@ integer, allocatable :: r_col_array(:)
 integer(4) :: mpi_stat(MPI_STATUS_SIZE)
 ! Timer variables
 double precision :: c_start, c_end, e_time
+
+! Objects
+type(csd_generator) :: csdgen_obj
+type(csd_solution_set) :: csdss_Xinit, csdss_Xcur, csdss_Xnew, csdss_Xsol
 
 ! Choose root process as 0
 root = 0
@@ -51,8 +45,9 @@ if(my_rank == root) then
     read(1,*)d
     N = ceiling(log(real(d))/log(2.0))
     M = 2**N
+    Msq = M*M
     allocate(X(M,M))
-    allocate(X_MPI_temp(M*M))
+    allocate(X_MPI_temp(Msq))
     X = 0.0d0
     do i = 1, d
     	do j = 1, d
@@ -65,7 +60,7 @@ if(my_rank == root) then
     	end do
     end if
     close(1)
-    Msq = M*M
+    call Flatten(M,X,X_MPI_temp)
 end if
 
 ! Broadcast the matrix X from the root process to all the other processes
@@ -74,12 +69,16 @@ call MPI_Bcast(N,1,MPI_INTEGER8,root,MPI_COMM_WORLD,ierr)
 if(my_rank /= root) then
     M = 2**N
     Msq = M*M
-    allocate(X(M,M))            ! Currently not in use....
+    allocate(X(M,M))
     allocate(X_MPI_temp(Msq))
 end if
+call MPI_Bcast(X_MPI_temp,Msq,MPI_DOUBLE_PRECISION,root,MPI_COMM_WORLD,ierr)
+if(my_rank /= root) then
+    call Box(M,X_MPI_temp,X)
+end if
 
+! Allocate record arrays
 allocate(history(ITER_LIM+1))
-allocate(history_Delta(ITER_LIM))
 allocate(r_col_array(p))
 ! Allocate input and output arrays
 allocate(index_level(M-1))
@@ -88,78 +87,73 @@ index_level = 0
 index_pair = 0
 ! index_level and index_pair are invariant per CSD invocation
 call CYG_INDEXTABLE(N,M,index_level,index_pair)
-
 ! Allocate workspace arrays
 allocate(Perm(M))
 allocate(Perm_new(M))
 allocate(Perm_sol(M))
-allocate(Xcur(M,M))
-allocate(Xnew(M,M))
-allocate(Pmat(M,M))
-allocate(PTmat(M,M))
-allocate(X_sol(M,M))
+! Start with the identity permutation
+do i = 1, M
+    Perm(i) = i
+    Perm_new(i) = i
+    Perm_sol(i) = i
+end do
+! Run object constructors
+call csdgen_obj%constructor(N,M,index_level,index_pair)
+call csdss_Xinit%constructor(3,N,M)
+call csdss_Xcur%constructor(3,N,M)
+call csdss_Xnew%constructor(3,N,M)
+call csdss_Xsol%constructor(3,N,M)
+! Convention: U = P^T U' P - PLEASE CHECK THIS
+call permlisttomatrixtr(M,Perm,csdss_Xinit%arr(1)%X)
+csdss_Xinit%arr(2)%X = X
+call permlisttomatrix(M,Perm,csdss_Xinit%arr(3)%X)
+! Count initial number of gates (including reduction)
+call csdss_Xinit%arr(2)%run_csdr(csdgen_obj)
+csdss_Xinit%csd_ss_ct = csdss_Xinit%arr(2)%csd_ct
+csdss_Xinit%csdr_ss_ct = csdss_Xinit%arr(2)%csdr_ct
+ecur = csdss_Xinit%csdr_ss_ct
 
-if(my_rank == root) then
-    ! Find a 'well-arranged' permutation to start from
-    ! Initialize the matrix of Hamming distances between all i and j
-    esol = DecomposeAndCount(N,M,X,GATEY,GATEPI)
-    write(*,'(a,i8)')"Original number of gates (before reduction) = ",esol
-    esol = DecomposeAndCountReduced(N,M,X,GATEY,GATEPI,index_level,r_Circuit)
-    write(*,'(a,i8)')"Original number of gates (after reduction) = ",esol
-    Xcur = X
-    ecur = esol
-    do i = 1, M
-        Perm(i) = i
-    end do
-    call Flatten(M,Xcur,X_MPI_temp)
-end if
+!goto 3010
 
-call MPI_Bcast(ecur,1,MPI_INTEGER8,root,MPI_COMM_WORLD,ierr)
-call MPI_Bcast(Perm,M,MPI_INTEGER8,root,MPI_COMM_WORLD,ierr)
-call MPI_Bcast(X_MPI_temp,Msq,MPI_DOUBLE_PRECISION,root,MPI_COMM_WORLD,ierr)
-if(my_rank /= root) then
-    call Box(M,X_MPI_temp,Xcur)
-end if
-
-esol = ecur
-idx_sol = 0
-X_sol = Xcur
-Perm_sol = Perm
-history(1) = ecur
-Xnew = Xcur
+! Initialize solution to initial setup
+call csdss_Xcur%copy(csdss_Xinit)
 enew = ecur
-Perm_new = Perm
+call csdss_Xnew%copy(csdss_Xinit)
+esol = ecur
+call csdss_Xsol%copy(csdss_Xinit)
 tol = CalcTol(ecur)
 t0 = tol
 e0 = ecur
+idx_sol = 0
+history(1) = ecur
 
 c_start = MPI_Wtime()
 do i = 1, ITER_LIM
     Perm_new = Perm
-    call NeighbourhoodOpt(N,M,Xcur,Xnew,Perm_new)
-    enew = DecomposeAndCountReducedWP(N,M,Xnew,Perm_new,Pmat,PTmat,GATEY,GATEPI,index_level,r_Circuit)
+    call NeighbourhoodOpt(M,csdss_Xcur,csdss_Xnew,Perm_new)
+    call csdss_Xnew%run_csdr(csdgen_obj)
+    enew = csdss_Xnew%csdr_ss_ct
     delta = enew - ecur
     !write(*,*)"New number of gates = ",ecur,"/",enew
     if(enew <= ecur) then
-        Xcur = Xnew
+        call csdss_Xcur%copy(csdss_Xnew)
         ecur = enew
         Perm = Perm_new
         if(enew < esol) then
+            call csdss_Xsol%copy(csdss_Xcur)
             esol = ecur
-            idx_sol = i
-            X_sol = Xcur
             Perm_sol = Perm
+            idx_sol = i
         end if
     else
         ! No improvement to the cost function
         if(delta <= tol) then
-            Xcur = Xnew
+            call csdss_Xcur%copy(csdss_Xnew)
             ecur = enew
             Perm = Perm_new
         end if
     end if
     history(i+1) = ecur
-    history_Delta(i) = delta
     ! Limit the maximum tolerance to the initial tolerance value
     if(ecur < e0) then
         tol = CalcTol(ecur)
@@ -168,12 +162,11 @@ do i = 1, ITER_LIM
     end if
 end do
 if(ecur < esol) then
+    call csdss_Xsol%copy(csdss_Xcur)
     esol = ecur
-    idx_sol = ITER_LIM
-    X_sol = Xcur
     Perm_sol = Perm
+    idx_sol = ITER_LIM
 end if
-r_col = DecomposeAndCountReduced(N,M,X_sol,GATEY,GATEPI,index_level,r_Circuit)
 c_end = MPI_Wtime()
 e_time = c_end - c_start
 
@@ -189,18 +182,14 @@ if(my_rank == m_pos-1) then
     ! Initialize filenames
     write(fhist,'(a,a)')fbase(1:flength),"_history.dat"
     write(fperm,'(a,a)')fbase(1:flength),"_perm.dat"
-    write(fgate,'(a,a)')fbase(1:flength),"_gates.txt"
-    write(ftex,'(a,a)')fbase(1:flength),"_plot.tex"
-    write(ftexr,'(a,a)')fbase(1:flength),"_plot_reduced.tex"
-    ! Write the .tex files
-    call CYGR_WRITEF(N,M,GATEY,GATEPI,index_level,fgate,ftex,ftexr,r_Circuit,r_col)
+    write(ftex,'(a,a)')fbase(1:flength),"_circuit.tex"
     ! Write the history of the algorithm to a file
     open(unit=1,file=fhist,action='write')
     do i = 0, ITER_LIM
         write(1,'(i8,a,i8)')i," ",history(i+1)
     end do
     close(1)
-    ! Write the optimal permutation and the corresponding matrix to a file
+    ! Write the optimal permutation and the corresponding matrix to a file - PLEASE KEEP IN VIEW
     open(unit=2,file=fperm,action='write')
     do i = 1, M
         write(2,'(i15,a)',advance='no')Perm_sol(i)," "
@@ -208,18 +197,14 @@ if(my_rank == m_pos-1) then
     write(2,*)
     do i = 1, M
         do j = 1, M
-            write(2,'(f15.9,a)',advance='no')X_sol(i,j)," "
+            write(2,'(f15.9,a)',advance='no')csdss_Xsol%arr(2)%X(i,j)," "
         end do
         write(2,*)
     end do
     close(2)
+    ! Write the .tex files
+    call csdss_Xsol%write_circuit(ftex)
 end if
-
-call permlisttomatrix(M,Perm_sol,Pmat)
-PTmat = transpose(Pmat)
-nP = DecomposeAndCountReduced(N,M,Pmat,GATEY,GATEPI,index_level,r_Circuit)
-nPT = DecomposeAndCountReduced(N,M,PTmat,GATEY,GATEPI,index_level,r_Circuit)
-ntot = r_col + nP + nPT
 
 call flush(6)
 call MPI_Barrier(MPI_COMM_WORLD,ierr)
@@ -230,27 +215,31 @@ if(my_rank /= root) then
 else
     write(*,'(a,i4)')"Size of communicator: ",p
 end if
-write(*,'(a,i4,a,i8,a,i8)')"Process ",my_rank,": Final number of gates = ",esol," at step number ",idx_sol
-write(*,'(a,i4,a,i8,a,i8,a,i8,a,i8,a)')"Process ",my_rank,": (r_col,nP,nPT,ntot) = (",r_col,",",nP,",",nPT,",",ntot,")"
+write(*,'(a,i4,a,i8,a,i8)')"Process ",my_rank,": Initial number of gates before/after reduction = ",csdss_Xinit%csd_ss_ct,"/",csdss_Xinit%csdr_ss_ct
+write(*,'(a,i4,a,i8,a,i8,a,i8,a,i8,a,i8)')"Process ",my_rank,": Breakdown of solution = ",csdss_Xsol%arr(1)%csdr_ct,"/",csdss_Xsol%arr(2)%csdr_ct,"/",csdss_Xsol%arr(3)%csdr_ct,"/",csdss_Xsol%csdr_ss_ct," at step number ",idx_sol
 write(*,'(a,i4,a,f15.9,a)')"Process ",my_rank,": Time taken = ",e_time," seconds."
 call flush(6)
 if(my_rank /= p-1) then
     call MPI_Send(dummy,1,MPI_INTEGER,my_rank+1,101,MPI_COMM_WORLD,ierr)
 end if
 
+! Free up memory
+deallocate(X)
+deallocate(X_MPI_temp)
 deallocate(history)
-deallocate(history_Delta)
 deallocate(r_col_array)
-deallocate(X,index_level,index_pair)
+deallocate(index_level)
+deallocate(index_pair)
 deallocate(Perm)
 deallocate(Perm_new)
 deallocate(Perm_sol)
-deallocate(Xcur)
-deallocate(Xnew)
-deallocate(Pmat)
-deallocate(PTmat)
-deallocate(X_sol)
-deallocate(X_MPI_temp)
+
+! Run object destructors
+call csdgen_obj%destructor()
+call csdss_Xinit%destructor()
+call csdss_Xcur%destructor()
+call csdss_Xnew%destructor()
+call csdss_Xsol%destructor()
 
 end subroutine OptQC_REAL
 

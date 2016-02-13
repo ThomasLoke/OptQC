@@ -50,4 +50,8 @@ Temporary Items
 *.o
 *.mod
 OptQC
-*.pbs.*
+
+# Result files
+*.tex
+*.dat
+*.pbs.o*

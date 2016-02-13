@@ -9,3 +9,21 @@ v0.1:
 - Absorbed functionality from CYGR_CSD.f90, CYGR_BLKCSD.f90, CYGR_CUTGATE.f90, OptQC_Output.f90 and some of CYGR_WRITEF.f90, OptQC_Common.f90 and OptQC_GateCount.f90 into OptQC_CSD.f90.
 - Decided to store current progress as v0.1 - especially makefile changes. Object-oriented approach to be expanded upon and to be used in the coming versions.
 - Reminder: Restore documentation for CSD functions? Meh, maybe not, or maybe later.
+
+v0.2:
+- Moved code for CYG_INDEXTABLE.f90 into OptQC_Common.f90, since well, that should have been done.
+- Removed writing of "*_gates.txt" - difficult in general, and not particularly informative.
+- Removed writing of the non-reduced solution in favour of just the reduced solution.
+- Renamed output .tex file to "*_circuit.tex".
+- Deleted files: CYG_INDEXTABLE.f90, CYGR_CSD.f90, CYGR_BLKCSD.f90, CYGR_CUTGATE.f90, OptQC_Output.f90, CYGR_WRITEF.f90, OptQC_GateCount.f90 and OptQC_Mem.f90 due to absorption or removal of functionality.
+- Edited makefile correspondingly.
+- Moved intermediate GATEY and GATEPI variables from csd_solution object to the csd_generator object.
+- Fixed writing function for csd_solution - double precision changed to integer. Minor edits for clarity in said function.
+- Defined the csd_solution_set object as a collection of csd_solution objects.
+- Minor design changes to csd_solution and csd_solution_set objects.
+- Further editing of OptQC_Main.f90 file.
+- Edited OptQC_Perm.f90 to use objects in OptQC_CSD.f90.
+- UGH DEBUGGING.
+- Modified margins of .tex output.
+- Decided to store current progress as v0.2 - planning to make another object to handle file output. WHAI >_>
+

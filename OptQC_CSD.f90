@@ -8,15 +8,31 @@ implicit none
 double precision, parameter :: CUTOFF = 0.0000000001d0
 double precision, parameter :: PI = 3.1415926535897932384626433832795028841971693993751d0
 
-type csd_solution_set
+type csd_solution
     integer :: N, M
     double precision, allocatable :: X(:,:)
-    double precision, allocatable :: GATEY(:,:), GATEPI(:,:)
     character(len=15), allocatable :: Circuit(:,:)          ! Note: By design, this is empty unless run_csdr is called
     integer :: csd_ct, csdr_ct
 contains
+    procedure :: constructor => csd_solution_constructor
+    procedure :: destructor => csd_solution_destructor
+    procedure :: clean => csd_solution_clean
+    procedure :: copy => csd_solution_copy
+    procedure :: run_csd => csd_solution_run_csd
+    procedure :: run_csdr => csd_solution_run_csdr
+    procedure :: write_circuit => csd_solution_write_circuit
+end type csd_solution
+
+type csd_solution_set
+    integer :: nset
+    integer :: N, M
+    type(csd_solution), allocatable :: arr(:)
+    integer :: csd_ss_ct, csdr_ss_ct
+contains
     procedure :: constructor => csd_solution_set_constructor
     procedure :: destructor => csd_solution_set_destructor
+    procedure :: clean => csd_solution_set_clean
+    procedure :: copy => csd_solution_set_copy
     procedure :: run_csd => csd_solution_set_run_csd
     procedure :: run_csdr => csd_solution_set_run_csdr
     procedure :: write_circuit => csd_solution_set_write_circuit
@@ -27,9 +43,9 @@ type csd_generator
     ! Global variables throughout all subroutines
     integer :: N, M, Mh                                     ! Reminder: M = 2**N, Mh = M/2
     integer, pointer :: index_level(:), index_pair(:,:,:)   ! Remains constant for matrices of the same dimensions
-    ! Note: Could just store a pointer to the csd_solution_set object instead - but done this way for less indirection (i.e. more clarity)
+    double precision, allocatable :: GATEY(:,:), GATEPI(:,:)! Intermediate variables carrying CSD results - moved from csd_solution object
+    ! Note: Could just store a pointer to the csd_solution object instead - but done this way for less indirection (i.e. more clarity)
     double precision, pointer :: X(:,:)                     ! Intent: In
-    double precision, pointer :: GATEY(:,:), GATEPI(:,:)    ! Intent: Out
     character(len=15), pointer :: Circuit(:,:)              ! Intent: Out
     integer, pointer :: csd_ct, csdr_ct                     ! Intent: Out
     ! Workspace arrays
@@ -65,10 +81,10 @@ end type csd_generator
 
 contains
 
-subroutine csd_solution_set_constructor(this,N,M)
+subroutine csd_solution_constructor(this,N,M)
 
 implicit none
-class(csd_solution_set) :: this
+class(csd_solution) :: this
 integer :: N, M
 
 this%N = N
@@ -76,74 +92,100 @@ this%M = M
 this%csd_ct = 0
 this%csdr_ct = 0
 allocate(this%X(M,M))
-allocate(this%GATEY(M/2,M-1))
-allocate(this%GATEPI(M/2,N))
 allocate(this%Circuit(N+1,M*M/2+M))
+this%X = 0.0d0
+this%Circuit = ""
 
-end subroutine csd_solution_set_constructor
+end subroutine csd_solution_constructor
 
-subroutine csd_solution_set_destructor(this)
+subroutine csd_solution_destructor(this)
 
 implicit none
-class(csd_solution_set) :: this
+class(csd_solution) :: this
 
 deallocate(this%X)
-deallocate(this%GATEY)
-deallocate(this%GATEPI)
 deallocate(this%Circuit)
 
-end subroutine csd_solution_set_destructor
+end subroutine csd_solution_destructor
 
-subroutine csd_solution_set_run_csd(this,generator)
+subroutine csd_solution_clean(this)
 
 implicit none
-class(csd_solution_set) :: this
+class(csd_solution) :: this
+
+this%Circuit = ""
+this%csd_ct = 0
+this%csdr_ct = 0
+
+end subroutine csd_solution_clean
+
+subroutine csd_solution_copy(this,source)
+
+implicit none
+class(csd_solution) :: this
+type(csd_solution) :: source
+
+this%X = source%X
+this%Circuit = source%Circuit
+this%csd_ct = source%csd_ct
+this%csdr_ct = source%csdr_ct
+
+end subroutine csd_solution_copy
+
+subroutine csd_solution_run_csd(this,generator)
+
+implicit none
+class(csd_solution) :: this
 type(csd_generator) :: generator
 
+call this%clean()
 call generator%assign_target(this)
-call generator%run_csd()            ! Note: No circuit result
+call generator%run_csd()                         ! Note: No circuit result
 call generator%nullify_target()
 
-end subroutine csd_solution_set_run_csd
+end subroutine csd_solution_run_csd
 
-subroutine csd_solution_set_run_csdr(this,generator)
+subroutine csd_solution_run_csdr(this,generator)
 
 implicit none
-class(csd_solution_set) :: this
+class(csd_solution) :: this
 type(csd_generator) :: generator
 
+call this%clean()
 call generator%assign_target(this)
 call generator%run_csd()
-call generator%ReduceSolution()     ! Note: Circuit result produced here
+call generator%ReduceSolution()                  ! Note: Circuit result produced here
 call generator%nullify_target()
 
-end subroutine csd_solution_set_run_csdr
+end subroutine csd_solution_run_csdr
 
-subroutine csd_solution_set_write_circuit(this,fout)
+subroutine csd_solution_write_circuit(this,fout)
 
 implicit none
-class(csd_solution_set) :: this
-character(len=128)      :: fout
+class(csd_solution) :: this
+character(len=128) :: fout
 
-integer :: nvar, colnum, colsum, partct, part, row, col
-double precision :: partmax
+integer :: nvar, nlfull, colnum, colsum, partmax, partct, part, row, col
 
 if(this%csdr_ct == 0) then
     write(*,'(a)')"Attempted to output empty circuit to .tex file - request ignored."
     return
 end if
-nvar = this%N + 1
-partmax = 36.0d0 / nvar
+nvar = this%N + 1                               ! Requires N+1 rows, due to the last line being reserved for parameter values
+partmax = 36 / nvar                             ! Maximum number of rows on one page set as 36, division gives the maximum number of circuit lines
 open(unit=1,file=fout,status='replace')
 write(1,'(a)') '\documentclass{amsart}'
 write(1,'(a)') '\usepackage[matrix,frame,arrow]{xypic}'
+write(1,'(a)') '\usepackage[cm]{fullpage}'
 write(1,'(a)') '\input{Qcircuit}'
 write(1,*)
 write(1,'(a)') '\begin{document}'
-colnum = 10
-colsum = this%csdr_ct
+colnum = 10                                     ! This determines the maximum number of columns in a line
+colsum = this%csdr_ct                           ! Total number of columns - obtained from decomposition results
 partct = 0
-do part = 1,colsum/colnum
+nlfull = colsum / colnum                        ! Number of full lines
+do part = 1, nlfull                             ! Main looping section - colsum/colnum rounds down
+    ! Start of circuit (or new page)
     if(partct == 0) then
         write(1,*)
         write(1,'(a)') '\['
@@ -151,23 +193,24 @@ do part = 1,colsum/colnum
     end if
 	do row = 1,nvar
 		do col = (part-1)*colnum+1,part*colnum
-			write(1,303,advance='NO') this%Circuit(row,col)
+			write(1,303,advance='no') this%Circuit(row,col)
 		end do
-		if (row .ne. nvar) THEN
-			write(1,303,advance='NO') '& \qw \\'
+		if (row /= nvar) then
+			write(1,303,advance='no') '& \qw \\'
 		else
-			write(1,303,advance='NO') '&     \\'
+			write(1,303,advance='no') '&     \\'
 		end if
 		write(1,*)
 	end do
 	partct = partct + 1
+	! If maximum number of lines is reached, skip to next page
 	if(partct == partmax) then
         write(1,'(a)') '}'
         write(1,'(a)') '\]'
         partct = 0
     end if
 end do
-part = colsum/colnum
+part = nlfull
 if(part*colnum+1 <= colsum) then
     if(partct == 0) then
         write(1,*)
@@ -176,12 +219,12 @@ if(part*colnum+1 <= colsum) then
     end if
     do row = 1,nvar
         do col = part*colnum+1,colsum
-            write(1,303,advance='NO') this%Circuit(row,col)
+            write(1,303,advance='no') this%Circuit(row,col)
         end do
-        if (row .ne. nvar) THEN
-            write(1,303,advance='NO') '& \qw \\'
+        if (row /= nvar) then
+            write(1,303,advance='no') '& \qw \\'
         else
-            write(1,303,advance='NO') '&     \\'
+            write(1,303,advance='no') '&     \\'
         end if
         write(1,*)
     end do
@@ -191,9 +234,114 @@ write(1,'(a)') '\]'
 write(1,*)
 write(1,'(a)') '\end{document}'
 CLOSE(1)
-301 format(B20.20)
-302 format('& ',F8.4)
 303 format(A15)
+
+end subroutine csd_solution_write_circuit
+
+subroutine csd_solution_set_constructor(this,nset,N,M)
+
+implicit none
+class(csd_solution_set) :: this
+integer :: nset, N, M
+
+integer :: i
+
+this%nset = nset
+this%N = N
+this%M = M
+allocate(this%arr(nset))
+do i = 1, nset
+    call this%arr(i)%constructor(N,M)
+end do
+this%csd_ss_ct = 0
+this%csdr_ss_ct = 0
+
+end subroutine csd_solution_set_constructor
+
+subroutine csd_solution_set_destructor(this)
+
+implicit none
+class(csd_solution_set) :: this
+
+integer :: i
+
+do i = 1, this%nset
+    call this%arr(i)%destructor()
+end do
+deallocate(this%arr)
+
+end subroutine csd_solution_set_destructor
+
+subroutine csd_solution_set_clean(this)
+
+implicit none
+class(csd_solution_set) :: this
+
+! Note: Cleaning of csd_solution objects is done individually in their call to run_csd or run_csdr
+this%csd_ss_ct = 0
+this%csdr_ss_ct = 0
+
+end subroutine csd_solution_set_clean
+
+subroutine csd_solution_set_copy(this,source)
+
+implicit none
+class(csd_solution_set) :: this
+type(csd_solution_set) :: source
+
+integer :: i
+
+do i = 1, this%nset
+    call this%arr(i)%copy(source%arr(i))
+end do
+this%csd_ss_ct = source%csd_ss_ct
+this%csdr_ss_ct = source%csdr_ss_ct
+
+end subroutine csd_solution_set_copy
+
+subroutine csd_solution_set_run_csd(this,generator)
+
+implicit none
+class(csd_solution_set) :: this
+type(csd_generator) :: generator
+
+integer :: i
+
+call this%clean()
+do i = 1, this%nset
+    call this%arr(i)%run_csd(generator)
+    this%csd_ss_ct = this%csd_ss_ct + this%arr(i)%csd_ct
+end do
+
+end subroutine csd_solution_set_run_csd
+
+subroutine csd_solution_set_run_csdr(this,generator)
+
+implicit none
+class(csd_solution_set) :: this
+type(csd_generator) :: generator
+
+integer :: i
+
+call this%clean()
+do i = 1, this%nset
+    call this%arr(i)%run_csdr(generator)
+    this%csd_ss_ct = this%csd_ss_ct + this%arr(i)%csd_ct
+    this%csdr_ss_ct = this%csdr_ss_ct + this%arr(i)%csdr_ct
+end do
+
+end subroutine csd_solution_set_run_csdr
+
+subroutine csd_solution_set_write_circuit(this,fout)
+
+implicit none
+class(csd_solution_set) :: this
+character(len=128) :: fout
+
+! TODO: OVERHAUL EVERYTHING RAWR
+if(this%nset == 3) then
+    call this%arr(2)%write_circuit(fout)
+end if
 
 end subroutine csd_solution_set_write_circuit
 
@@ -202,7 +350,7 @@ subroutine csd_generator_constructor(this,N,M,index_level,index_pair)
 implicit none
 class(csd_generator) :: this
 integer :: N, M
-integer, target :: index_level(:), index_pair(:,:,:)
+integer, target :: index_level(M-1), index_pair(M/2,2,N)
 integer :: i, Mh, size0, size1, num0, num1
 
 Mh = M / 2
@@ -211,6 +359,8 @@ this%M = M
 this%Mh = Mh
 this%index_level => index_level
 this%index_pair => index_pair
+allocate(this%GATEY(M/2,M-1))
+allocate(this%GATEPI(M/2,N))
 call this%nullify_target()
 allocate(this%Z_array(M,M))
 allocate(this%PI_array(M,N))
@@ -264,6 +414,8 @@ class(csd_generator) :: this
 
 nullify(this%index_level)
 nullify(this%index_pair)
+deallocate(this%GATEY)
+deallocate(this%GATEPI)
 call this%nullify_target()
 deallocate(this%Z_array,this%PI_array,this%GATEY_sign)
 call this%Z0%destructor()
@@ -289,13 +441,10 @@ subroutine csd_generator_assign_target(this,csd_ss)
 
 implicit none
 class(csd_generator) :: this
-type(csd_solution_set), target :: csd_ss
+type(csd_solution), target :: csd_ss
 
+! Bind pointers to the csd_solution elements
 this%X => csd_ss%X
-this%GATEY => csd_ss%GATEY
-this%GATEY = 0.0d0
-this%GATEPI => csd_ss%GATEPI
-this%GATEPI = 0.0d0
 this%Circuit => csd_ss%Circuit
 this%Circuit = ''
 this%csd_ct => csd_ss%csd_ct
@@ -311,8 +460,6 @@ implicit none
 class(csd_generator) :: this
 
 nullify(this%X)
-nullify(this%GATEY)
-nullify(this%GATEPI)
 nullify(this%Circuit)
 nullify(this%csd_ct)
 nullify(this%csdr_ct)
@@ -327,6 +474,7 @@ class(csd_generator) :: this
 integer :: N, i, j
 
 N = this%N
+! Clean up intermediate variables first
 this%GATEY = 0.0d0
 this%GATEPI = 0.0d0
 
@@ -357,7 +505,6 @@ end do
 !	Step 3: CYGC_CSD processes the CSD results
 !	        In this step, we obtain all the Ry Gates and the PI Gates for X: GATEY, GATEPI
 call this%run_cutgate()
-return
 
 !   Step 4 (added): Obtain count of gates
 call this%GateCount()
@@ -428,7 +575,7 @@ do k = 1, num0
     end if
 	do k1 = 1,size0
 		do k2 = 1,size0
-			if(ABS(X_blk(k1,k2)) <= CUTOFF) then
+			if(abs(X_blk(k1,k2)) <= CUTOFF) then
 				X_blk(k1,k2) = 0.0
 			end if
 		end do
