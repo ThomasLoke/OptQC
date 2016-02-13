@@ -98,3 +98,14 @@ v0.52:
 -> Checked by entering a real matrix as complex, compared with Qcompiler implementation - results are identical! So the problem being complex matrices.... >_>
 -> From real results, Mathematica indicates that GATEPHASE definition is {{1,0},{0,exp(i*param*pi)}}.
 - Decided to store current progress as v0.52 - the bug hunt continues...
+
+v0.6:
+- MOAR BUG HUNTING:
+-> Decomposed 2-by-2 matrix - results agree with Qcompiler as usual, but results are still fail.
+-> Checking DORCSD/ZUNCSD subroutines - results are correct for both real and complex matrices - note that V1T and V2T matrices have already been conjugate transposed.
+-> 'O' option for DORCSD/ZUNCSD gives the convention for the middle matrix as {{C,S},{-S,C}}
+-> SDAJFHDFHKJFHAKSJFSAKHFASSKJFBASJFN problem in my testing script - after fixing that, YANGANG'S CODE IS VERIFIED TO BE COMPLETELY FINE.
+-> I guess problem solved >_>
+- Or not....getting segfaults for both REAL and CPLX implementation. WHAIIIIIII.
+- Segfaulting for > 1 process? Output issues? Symptomatic? Possible issue with qubit permutation sec?
+- Decided to store current progress as v0.6 - contemplating rerolling to earlier version.

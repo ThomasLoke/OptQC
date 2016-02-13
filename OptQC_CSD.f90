@@ -210,7 +210,10 @@ implicit none
 class(csd_solution) :: this
 type(csd_solution) :: source
 
-this%obj_type = source%obj_type
+if(this%obj_type /= source%obj_type) then
+    write(*,'(a)')"Attempted to copy between csd_solution objects of different type. Terminating program."
+    call exit(1)
+end if
 if(this%obj_type == 0) then
     this%X = source%X
 else
@@ -405,8 +408,8 @@ subroutine csd_generator_constructor(this,N,M,obj_type,index_level,index_pair,CO
 implicit none
 class(csd_generator) :: this
 integer :: N, M, obj_type
-integer, target :: index_level(M-1), index_pair(M/2,2,N)
-double precision, target :: COEFF(M,M)
+integer, target :: index_level(:), index_pair(:,:,:)
+double precision, target :: COEFF(:,:)
 integer :: i, Mh, size0, size1, num0, num1
 
 Mh = M / 2
@@ -744,7 +747,7 @@ do k = 1, num0
 	do k1 = 1,size0
 		do k2 = 1,size0
 			if(abs(X_blk(k1,k2)) <= CUTOFF) then
-				X_blk(k1,k2) = 0.0
+				X_blk(k1,k2) = 0.0d0
 			end if
 		end do
 	end do
@@ -966,6 +969,7 @@ integer :: i, j, idx, INFO
 
 N = this%N
 M = this%M
+INFO = 0
 
 ! Initialize Z_temp to prescribed block
 this%Z_temp = C_ZERO
@@ -1295,8 +1299,8 @@ else
         end do
     end do
 end if
-302 format('& ',F7.4)
-!302 format('& ',F12.9)
+!302 format('& ',F7.4)
+302 format('& ',F12.9)
 this%csdr_ct = ct
 
 end subroutine csd_generator_ReduceSolution
